@@ -5921,3 +5921,4 @@ tbody tr:hover {
 .patient-appointment p { color: #708b7a; font-size: 12px; line-height: 1.8; }
 .patient-appointment > p { display: flex; align-items: center; gap: 8px; }
 .patient-appointment .text-link { justify-self: start; }
+.patient-qr-anchor { scroll-margin-top: 24px; }

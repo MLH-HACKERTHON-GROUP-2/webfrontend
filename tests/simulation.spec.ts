@@ -75,6 +75,15 @@ test('new patient profile and wallet use the normal portal', async ({ page }) =>
   await page.reload();
   await expect(page.locator('.stat-card').filter({ hasText: 'Patient wallet' })).toContainText('500');
 });
+test('patient QR is easy to find at the top of My care and explains the scan flow', async ({ page }) => {
+  await login(page, 'patient@emerald.care');
+  await expect(page.getByRole('link', { name: 'My patient QR' })).toBeVisible();
+  await page.getByRole('link', { name: 'My patient QR' }).click();
+  await expect(page).toHaveURL(/#patient-qr$/);
+  await expect(page.getByRole('heading', { name: 'Your patient QR' })).toBeVisible();
+  await expect(page.getByText(/Show this short-lived code to your doctor or pharmacist/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Generate patient QR', exact: true })).toBeVisible();
+});
 test('pharmacists cannot open doctor routes and old simulation URL redirects to actual pages', async ({ page }) => {
   await login(page, 'pharmacy@emerald.care');
   await page.goto('/session');

@@ -33,7 +33,7 @@ const nav = [{
   icon: ChartNoAxesCombined
 }, {
   href: '/connections',
-  label: 'Patient connections',
+  label: 'QR & patient connections',
   icon: QrCode
 }];
 export default function Shell({

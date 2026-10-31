@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Plus, CalendarDays, Users, Clock3, CheckCheck, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight, Pill, Stethoscope, FolderHeart, Sun, HeartPulse } from 'lucide-react';
+import { Plus, CalendarDays, Users, Clock3, CheckCheck, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight, Pill, Stethoscope, FolderHeart, Sun, HeartPulse, QrCode } from 'lucide-react';
 import { LiveDashboard } from '@/components/backend/live-features';
 import { useStore } from '@/lib/store';
 import { TODAY, type Appointment } from '@/lib/data';
@@ -76,9 +76,9 @@ export default function Dashboard() {
             desc: 'The full picture of their health'
           }, {
             href: '/connections',
-            icon: Pill,
-            label: 'Connect a patient',
-            desc: 'Share records through a one-time QR'
+            icon: QrCode,
+            label: 'Patient QR connections',
+            desc: 'Generate a staff QR or scan a patient QR'
           }].map(({
             href,
             icon: Icon,

@@ -74,7 +74,7 @@ export default function AccountWorkspace() {
     await reload();
     await load();
   };
-  return <><PageHeading eyebrow="CONNECTED CARE" title={user.role === 'PATIENT' ? 'My care' : 'Administration'} description={`Welcome, ${user.name}. Your care team works from the same shared records.`} actions={<>{user.role === 'PATIENT' && user.profileComplete && mode === 'simulation' && <Link className="button primary" href="/appointments?book=1"><Plus size={16} />Book appointment</Link>}<button className="button" disabled={busy} onClick={() => run(refresh)}>Refresh</button></>} />
+  return <><PageHeading eyebrow="CONNECTED CARE" title={user.role === 'PATIENT' ? 'My care' : 'Administration'} description={`Welcome, ${user.name}. Your care team works from the same shared records.`} actions={<>{user.role === 'PATIENT' && user.profileComplete && <><a className="button" href="#patient-qr"><QrCode size={16} />My patient QR</a>{mode === 'simulation' && <Link className="button primary" href="/appointments?book=1"><Plus size={16} />Book appointment</Link>}</>}<button className="button" disabled={busy} onClick={() => run(refresh)}>Refresh</button></>} />
     {notice && <div className="simulation-success" role="status">{notice}</div>}
     {user.role === 'PATIENT' && (!user.profileComplete ? <Panel title="Complete your patient profile"><DataForm label="Complete profile" busy={busy} fields={mode === 'live' ? [['name', 'Full name', 'text'], ['dob', 'Date of birth', 'date'], ['sex', 'Sex', 'text'], ['allergies', 'Allergies', 'text']] : [["name", "Full name", "text"], ["age", "Age", "number"], ["gender", "Gender", "text"], ["bloodGroup", "Blood group", "text"], ["allergies", "Allergies", "text"]]} onSubmit={f => run(async () => {
         const result = await client.request<{
@@ -93,13 +93,13 @@ export default function AccountWorkspace() {
         setNotice('Patient profile completed.');
       })} /></Panel> : <>
       <div className="stats-grid"><Stat label="Patient wallet" value={money(state.wallet || 0)} detail="Available for consultations and medicine" icon={<Wallet size={20} />} accent /><Stat label="Medical sessions" value={patient?.sessions.length || 0} detail="Your shared clinical history" icon={<Stethoscope size={20} />} /><Stat label="Pending prescriptions" value={state.prescriptions.filter(r => r.status === 'Pending' && r.finalized).length} detail="Ready for the pharmacy" icon={<Pill size={20} />} /></div>
-      <PatientAppointments embedded />
-      {mode === 'simulation' && <PatientPairing client={client} busy={busy} run={run} initialToken={incoming} />}
-      <div className="simulation-columns"><Panel title="Your patient QR" subtitle="Create a short-lived code when your care team asks to scan your app."><div className="panel-body"><QrDisplay qr={qr} /><button className="button primary full-width" disabled={busy} onClick={() => run(async () => {
+      <div id="patient-qr" className="patient-qr-anchor"><Panel title="Your patient QR" subtitle="Show this short-lived code to your doctor or pharmacist to look up your information securely."><div className="panel-body"><QrDisplay qr={qr} /><button className="button primary full-width" disabled={busy} onClick={() => run(async () => {
               setQr((await client.request<{
                 generateQrToken: Qr;
               }>(operations.qr)).generateQrToken);
-            })}><QrCode size={16} />{qr ? 'Refresh QR code' : 'Generate patient QR'}</button></div></Panel>
+            })}><QrCode size={16} />{qr ? 'Generate a new patient QR' : 'Generate patient QR'}</button><p className="small-muted">The code expires shortly after it is generated. Your care team must scan it while it is active.</p></div></Panel></div>
+      <PatientAppointments embedded />
+      {mode === 'simulation' && <PatientPairing client={client} busy={busy} run={run} initialToken={incoming} />}
       <Panel title="Top up your wallet" subtitle={mode === 'simulation' ? 'Local test payments; no card details required.' : 'Wallet changes are processed by the live backend.'}><form className="panel-body simulation-form" onSubmit={e => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -110,7 +110,7 @@ export default function AccountWorkspace() {
               await refresh();
               setNotice(mode === 'live' ? 'Live wallet updated.' : 'Wallet top-up completed.');
             });
-          }}><FormField label="Top-up amount (ZAR)"><input name="amount" type="number" min="0.01" max="100000" step="0.01" defaultValue="500" required /></FormField><button className="button primary" disabled={busy}><Plus size={16} />{mode === 'simulation' ? 'Add simulated funds' : 'Add funds'}</button><Link href="/records" className="text-link">View my medical records <ArrowRight size={15} /></Link></form></Panel></div>
+          }}><FormField label="Top-up amount (ZAR)"><input name="amount" type="number" min="0.01" max="100000" step="0.01" defaultValue="500" required /></FormField><button className="button primary" disabled={busy}><Plus size={16} />{mode === 'simulation' ? 'Add simulated funds' : 'Add funds'}</button><Link href="/records" className="text-link">View my medical records <ArrowRight size={15} /></Link></form></Panel>
       <Panel title="My payments"><div className="panel-body">{state.payments?.slice().reverse().map(p => <div className="simulation-price" key={p.id}><span>{p.kind === 'CONSULTATION' ? 'Consultation' : p.kind === 'MEDICINE' ? 'Medicine' : 'Wallet top-up'}<small className="block-muted">{new Date(p.occurredAt).toLocaleString('en-ZA')}</small></span><strong>{money(p.amount)}</strong></div>)}{!state.payments?.length && <Empty title="No payments yet" />}</div></Panel>
       <History sessions={patient?.sessions || []} />
     </>)}
