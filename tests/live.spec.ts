@@ -53,6 +53,9 @@ test('live doctor scan, clinical forms and finalization use real schema shapes',
   const { calls, requests } = await fixture(page, 'DOCTOR');
   await liveSignIn(page); await expect(page).toHaveURL(/dashboard/);
   await page.goto('/connections');
+  await expect(page.getByRole('heading', { name: 'Generate a staff connection QR' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Generate connection QR' })).toBeDisabled();
+  await expect(page.getByText(/ask the patient to sign in, open My care → My patient QR/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Generate login QR', exact: true })).toHaveCount(0);
   await page.getByLabel('Patient QR URL or token').fill('live-qr');
   await page.getByRole('button', { name: 'Verify patient QR', exact: true }).click();

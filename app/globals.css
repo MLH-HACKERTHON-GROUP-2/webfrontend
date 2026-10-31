@@ -5922,3 +5922,9 @@ tbody tr:hover {
 .patient-appointment > p { display: flex; align-items: center; gap: 8px; }
 .patient-appointment .text-link { justify-self: start; }
 .patient-qr-anchor { scroll-margin-top: 24px; }
+.connection-qr-unavailable { display: flex; align-items: center; gap: 16px; }
+.connection-qr-unavailable > div { flex: 1; }
+.connection-qr-unavailable strong { color: #456e50; font-size: 13px; }
+.connection-qr-unavailable p { margin-top: 6px; color: #789080; font-size: 12px; line-height: 1.8; }
+.connection-qr-icon { display: grid; place-items: center; flex: 0 0 52px; width: 52px; height: 52px; border-radius: 10px; color: var(--green); background: #eff8f1; }
+@media(max-width:700px) { .connection-qr-unavailable { align-items: stretch; flex-direction: column; } .connection-qr-unavailable > .button { align-self: start; } }
