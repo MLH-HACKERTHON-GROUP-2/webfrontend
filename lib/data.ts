@@ -1,0 +1,458 @@
+export const TODAY = '2026-10-31';
+export const DEMO_EMAIL = 'doctor@emerald.care';
+export const DEMO_PASSWORD = 'Emerald2026!';
+export type Patient = {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  blood: string;
+  phone: string;
+  email: string;
+  case: string;
+  allergies: string;
+  color: string;
+};
+export type Appointment = {
+  id: string;
+  patientId: string;
+  date: string;
+  time: string;
+  type: string;
+  status: 'Confirmed' | 'Waiting' | 'In progress' | 'Completed' | 'Cancelled';
+  reason: string;
+};
+export type Medicine = {
+  id: string;
+  name: string;
+  generic: string;
+  category: string;
+  strength: string;
+  stock: number;
+  threshold: number;
+  price: number;
+  expiry: string;
+};
+export type Prescription = {
+  id: string;
+  patientId: string;
+  medicineId: string;
+  quantity: number;
+  dosage: string;
+  duration: string;
+  instructions: string;
+  status: 'Pending' | 'Dispensed';
+  date: string;
+};
+export type Diagnosis = {
+  id: string;
+  patientId: string;
+  name: string;
+  code: string;
+  notes: string;
+  date: string;
+};
+export type Movement = {
+  id: string;
+  medicineId: string;
+  quantity: number;
+  type: 'Stock received' | 'Dispensed';
+  date: string;
+  reference: string;
+};
+export type Note = {
+  id: string;
+  patientId: string;
+  text: string;
+  date: string;
+};
+export type Profile = {
+  name: string;
+  email: string;
+  phone: string;
+  specialty: string;
+  bio: string;
+  available: string[];
+};
+export type AppState = {
+  patients: Patient[];
+  appointments: Appointment[];
+  medicines: Medicine[];
+  prescriptions: Prescription[];
+  diagnoses: Diagnosis[];
+  movements: Movement[];
+  notes: Note[];
+  profile: Profile;
+};
+export const seed: AppState = {
+  patients: [{
+    id: 'PT-1001',
+    name: 'Olivia Rhye',
+    age: 32,
+    gender: 'Female',
+    blood: 'O+',
+    phone: '+27 82 456 1234',
+    email: 'olivia@example.test',
+    case: 'Hypertension',
+    allergies: 'Penicillin',
+    color: 'peach'
+  }, {
+    id: 'PT-1002',
+    name: 'Phoenix Baker',
+    age: 45,
+    gender: 'Male',
+    blood: 'A+',
+    phone: '+27 83 567 2345',
+    email: 'phoenix@example.test',
+    case: 'Diabetes',
+    allergies: 'None known',
+    color: 'blue'
+  }, {
+    id: 'PT-1003',
+    name: 'Lana Steiner',
+    age: 28,
+    gender: 'Female',
+    blood: 'B+',
+    phone: '+27 84 678 3456',
+    email: 'lana@example.test',
+    case: 'General checkup',
+    allergies: 'None known',
+    color: 'pink'
+  }, {
+    id: 'PT-1004',
+    name: 'Demi Wilkinson',
+    age: 36,
+    gender: 'Female',
+    blood: 'AB+',
+    phone: '+27 82 789 4567',
+    email: 'demi@example.test',
+    case: 'Respiratory',
+    allergies: 'Sulfonamides',
+    color: 'purple'
+  }, {
+    id: 'PT-1005',
+    name: 'Drew Cano',
+    age: 52,
+    gender: 'Male',
+    blood: 'O-',
+    phone: '+27 83 890 5678',
+    email: 'drew@example.test',
+    case: 'Hypertension',
+    allergies: 'None known',
+    color: 'sand'
+  }, {
+    id: 'PT-1006',
+    name: 'Natali Craig',
+    age: 24,
+    gender: 'Female',
+    blood: 'A-',
+    phone: '+27 84 901 6789',
+    email: 'natali@example.test',
+    case: 'General checkup',
+    allergies: 'Latex',
+    color: 'mint'
+  }, {
+    id: 'PT-1007',
+    name: 'Orlando Diggs',
+    age: 61,
+    gender: 'Male',
+    blood: 'B-',
+    phone: '+27 82 012 7890',
+    email: 'orlando@example.test',
+    case: 'Diabetes',
+    allergies: 'None known',
+    color: 'peach'
+  }, {
+    id: 'PT-1008',
+    name: 'Andi Lane',
+    age: 39,
+    gender: 'Female',
+    blood: 'O+',
+    phone: '+27 83 123 8901',
+    email: 'andi@example.test',
+    case: 'Respiratory',
+    allergies: 'None known',
+    color: 'blue'
+  }],
+  appointments: [{
+    id: 'APT-201',
+    patientId: 'PT-1001',
+    date: TODAY,
+    time: '09:00',
+    type: 'Follow-up',
+    status: 'Waiting',
+    reason: 'Blood pressure review'
+  }, {
+    id: 'APT-202',
+    patientId: 'PT-1002',
+    date: TODAY,
+    time: '09:30',
+    type: 'Consultation',
+    status: 'Confirmed',
+    reason: 'Routine diabetes review'
+  }, {
+    id: 'APT-203',
+    patientId: 'PT-1003',
+    date: TODAY,
+    time: '10:00',
+    type: 'General checkup',
+    status: 'Confirmed',
+    reason: 'Annual health screening'
+  }, {
+    id: 'APT-204',
+    patientId: 'PT-1004',
+    date: TODAY,
+    time: '10:30',
+    type: 'Consultation',
+    status: 'Confirmed',
+    reason: 'Persistent cough'
+  }, {
+    id: 'APT-205',
+    patientId: 'PT-1005',
+    date: TODAY,
+    time: '11:00',
+    type: 'Follow-up',
+    status: 'Confirmed',
+    reason: 'Medication review'
+  }, {
+    id: 'APT-206',
+    patientId: 'PT-1006',
+    date: TODAY,
+    time: '11:30',
+    type: 'General checkup',
+    status: 'Confirmed',
+    reason: 'Wellness consultation'
+  }, {
+    id: 'APT-207',
+    patientId: 'PT-1007',
+    date: '2026-10-30',
+    time: '09:00',
+    type: 'Follow-up',
+    status: 'Completed',
+    reason: 'Diabetes follow-up'
+  }, {
+    id: 'APT-208',
+    patientId: 'PT-1008',
+    date: '2026-10-29',
+    time: '14:00',
+    type: 'Consultation',
+    status: 'Completed',
+    reason: 'Respiratory review'
+  }, {
+    id: 'APT-209',
+    patientId: 'PT-1003',
+    date: '2026-10-28',
+    time: '11:00',
+    type: 'Consultation',
+    status: 'Cancelled',
+    reason: 'Rescheduled by patient'
+  }, {
+    id: 'APT-210',
+    patientId: 'PT-1005',
+    date: '2026-10-27',
+    time: '10:00',
+    type: 'Follow-up',
+    status: 'Completed',
+    reason: 'Blood pressure check'
+  }, {
+    id: 'APT-211',
+    patientId: 'PT-1001',
+    date: '2026-10-24',
+    time: '09:00',
+    type: 'Consultation',
+    status: 'Completed',
+    reason: 'Initial assessment'
+  }, {
+    id: 'APT-212',
+    patientId: 'PT-1002',
+    date: '2026-11-02',
+    time: '09:30',
+    type: 'Follow-up',
+    status: 'Confirmed',
+    reason: 'Lab results review'
+  }],
+  medicines: [{
+    id: 'MED-001',
+    name: 'Amlodipine',
+    generic: 'Amlodipine besylate',
+    category: 'Cardiovascular',
+    strength: '5 mg',
+    stock: 240,
+    threshold: 50,
+    price: 2.5,
+    expiry: '2028-05-31'
+  }, {
+    id: 'MED-002',
+    name: 'Metformin',
+    generic: 'Metformin hydrochloride',
+    category: 'Diabetes',
+    strength: '500 mg',
+    stock: 380,
+    threshold: 60,
+    price: 1.2,
+    expiry: '2028-03-31'
+  }, {
+    id: 'MED-003',
+    name: 'Paracetamol',
+    generic: 'Acetaminophen',
+    category: 'Pain relief',
+    strength: '500 mg',
+    stock: 520,
+    threshold: 100,
+    price: 0.6,
+    expiry: '2028-08-31'
+  }, {
+    id: 'MED-004',
+    name: 'Cetirizine',
+    generic: 'Cetirizine hydrochloride',
+    category: 'Allergy',
+    strength: '10 mg',
+    stock: 24,
+    threshold: 50,
+    price: 1.8,
+    expiry: '2027-06-30'
+  }, {
+    id: 'MED-005',
+    name: 'Salbutamol',
+    generic: 'Salbutamol sulfate',
+    category: 'Respiratory',
+    strength: '100 mcg',
+    stock: 68,
+    threshold: 20,
+    price: 45,
+    expiry: '2027-12-31'
+  }, {
+    id: 'MED-006',
+    name: 'Omeprazole',
+    generic: 'Omeprazole',
+    category: 'Gastrointestinal',
+    strength: '20 mg',
+    stock: 165,
+    threshold: 40,
+    price: 3.5,
+    expiry: '2028-02-29'
+  }, {
+    id: 'MED-007',
+    name: 'Losartan',
+    generic: 'Losartan potassium',
+    category: 'Cardiovascular',
+    strength: '50 mg',
+    stock: 18,
+    threshold: 30,
+    price: 4.2,
+    expiry: '2027-09-30'
+  }, {
+    id: 'MED-008',
+    name: 'Vitamin D3',
+    generic: 'Cholecalciferol',
+    category: 'Supplements',
+    strength: '1000 IU',
+    stock: 200,
+    threshold: 40,
+    price: 2,
+    expiry: '2028-11-30'
+  }],
+  prescriptions: [{
+    id: 'RX-3001',
+    patientId: 'PT-1001',
+    medicineId: 'MED-001',
+    quantity: 30,
+    dosage: 'Recorded by clinician',
+    duration: '30 days',
+    instructions: 'Demo prescription. Review clinical instructions before dispensing.',
+    status: 'Pending',
+    date: TODAY
+  }, {
+    id: 'RX-3002',
+    patientId: 'PT-1002',
+    medicineId: 'MED-002',
+    quantity: 60,
+    dosage: 'Recorded by clinician',
+    duration: '30 days',
+    instructions: 'Demo prescription. Review clinical instructions before dispensing.',
+    status: 'Pending',
+    date: TODAY
+  }],
+  diagnoses: [{
+    id: 'DX-101',
+    patientId: 'PT-1001',
+    name: 'Essential hypertension',
+    code: 'I10',
+    notes: 'Established diagnosis. Follow-up assessment scheduled.',
+    date: '2026-10-24'
+  }, {
+    id: 'DX-102',
+    patientId: 'PT-1002',
+    name: 'Type 2 diabetes mellitus',
+    code: 'E11.9',
+    notes: 'Ongoing monitoring and routine follow-up.',
+    date: '2026-10-20'
+  }],
+  movements: [{
+    id: 'MV-1001',
+    medicineId: 'MED-001',
+    quantity: 270,
+    type: 'Stock received',
+    date: '2026-10-01',
+    reference: 'Opening stock'
+  }, {
+    id: 'MV-1002',
+    medicineId: 'MED-001',
+    quantity: 30,
+    type: 'Dispensed',
+    date: '2026-10-24',
+    reference: 'RX-2991'
+  }, {
+    id: 'MV-1003',
+    medicineId: 'MED-002',
+    quantity: 440,
+    type: 'Stock received',
+    date: '2026-10-01',
+    reference: 'Opening stock'
+  }, {
+    id: 'MV-1004',
+    medicineId: 'MED-002',
+    quantity: 60,
+    type: 'Dispensed',
+    date: '2026-10-20',
+    reference: 'RX-2992'
+  }, ...[['MED-003', 520], ['MED-004', 24], ['MED-005', 68], ['MED-006', 165], ['MED-007', 18], ['MED-008', 200]].map(([medicineId, quantity], i) => ({
+    id: `MV-101${i}`,
+    medicineId: String(medicineId),
+    quantity: Number(quantity),
+    type: 'Stock received' as const,
+    date: '2026-10-01',
+    reference: 'Opening stock'
+  }))],
+  notes: [{
+    id: 'N-001',
+    patientId: 'PT-1001',
+    text: 'Patient attended initial assessment. Follow-up arranged for blood pressure review.',
+    date: '2026-10-24'
+  }],
+  profile: {
+    name: 'Dr. Sarah Mitchell',
+    email: DEMO_EMAIL,
+    phone: '+27 11 555 0100',
+    specialty: 'General Practitioner',
+    bio: 'Dedicated to thoughtful, patient-centered primary care. A special interest in preventive medicine and chronic disease management.',
+    available: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+  }
+};
+export function initials(name: string) {
+  return name.replace(/^Dr\.\s*/, '').split(' ').map(n => n[0]).slice(0, 2).join('');
+}
+export function dateLabel(date: string) {
+  return new Date(date + 'T12:00:00').toLocaleDateString('en-ZA', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+export function uid(prefix: string) {
+  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+}
+export const money = (value: number) => new Intl.NumberFormat('en-ZA', {
+  style: 'currency',
+  currency: 'ZAR'
+}).format(value);

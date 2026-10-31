@@ -1,0 +1,29 @@
+{
+  "name": "emerald-care",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node_modules/node/bin/node node_modules/next/dist/bin/next dev --hostname 0.0.0.0",
+    "build": "node_modules/node/bin/node node_modules/next/dist/bin/next build --webpack",
+    "start": "node_modules/node/bin/node node_modules/next/dist/bin/next start",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node_modules/node/bin/node node_modules/@playwright/test/cli.js test"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest",
+    "jsqr": "latest",
+    "qrcode": "latest"
+  },
+  "devDependencies": {
+    "node": "^22.0.0",
+    "typescript": "latest",
+    "@types/node": "^22",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/qrcode": "latest",
+    "@playwright/test": "latest"
+  }
+}
