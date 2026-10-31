@@ -1,8 +1,10 @@
 # Emerald Care
 
-A responsive hospital management interface built with **Next.js App Router, React and TypeScript**, inspired by the five reference images in the parent folder. Emerald green replaces the references’ blue accents; the sidebar, clinical cards, appointment calendar, patient detail layout and split authentication screen carry their visual structure forward.
+A Next.js App Router clinical workspace with emerald styling and two explicitly separate backend modes. **Live backend is the default**, connected to `https://unstarched-maritally-ike.ngrok-free.dev/graphql`. Select **Simulation** on the sign-in page to use the full local mock system.
 
-## Run locally
+## Run
+
+Use Node.js 22 on the operating system where you run the app:
 
 ```bash
 cd emerald-care
@@ -10,67 +12,70 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. Node 22 is installed as a local development dependency so the scripts also work when the host Node version is older. A network connection is required for the initial dependency install.
+Open <http://localhost:3000/login>. In live mode, enter your registered email, phone number or username and use the one-time code supported by the backend. Roles come from the backend, never from the identifier text or a frontend role selector. The service exposes OTP authentication; it does not expose password authentication. The simulation's demo identifiers are not live doctor/admin credentials.
+
+To use simulation, also run this in another terminal and select **Simulation** at login:
 
 ```bash
-npm run typecheck
-npm run build
+npm run mock:backend
 ```
 
-The production build creates `out/`, a static export that can be served by a static web host. `next start` is for server builds; with the supplied static export config, preview `out/` using a static server instead. Fonts use Google Fonts with system fallbacks.
+Simulation accounts: `doctor@emerald.care`, `pharmacy@emerald.care`, `patient@emerald.care`, `avery.patient@emerald.care`, `new.patient@emerald.care`, `hospital@emerald.care`, `system@emerald.care`. Simulation OTP: **000000**. The quick demo button appears only in simulation.
 
-## Demo sign in
+## What each mode supports
 
-- Email: `doctor@emerald.care`
-- Password: `Emerald2026!`
-- Alternatively, select **Try the interactive demo**.
+| Feature | Live backend | Simulation |
+| --- | --- | --- |
+| OTP sign-in, role routing, session refresh | Connected | Available |
+| Patient profile, records, wallet, transaction history | Connected | Available |
+| Patient-generated QR lookup | Connected | Available |
+| Doctor consultation, vitals, diagnosis, prescriptions, finalization | Connected to live schema | Available |
+| Pharmacy price list and dispensing | Connected to live schema | Available |
+| Hospital/pharmacy/doctor onboarding | Connected; needs the appropriate live admin account | Available |
+| One-time staff QR and patient approval | Missing pairing operations on backend | Available |
+| Appointments, stock quantities/expiry/receipts, reports, doctor profile editing | Missing operations on backend | Available |
+| Updates | Refresh/polling; no subscriptions exposed | WebSocket events and fallback refresh |
 
-Password reset updates the demo password only in this browser. No email is sent. Sign out clears the tab’s demo session. This is a frontend prototype: the route gate and demo credentials are not production authentication or authorization.
+Unsupported live features show an explanation instead of fabricated records or mock writes. Live requests never automatically fall back to simulation. Mode-specific sessions and pending QR challenges are kept separate. Sign out before switching modes.
 
-## Pages
+Patients using **Simulation** can book from the **My appointments** card on `/portal` or the **My appointments** sidebar link. They choose a hospital, doctor, date, time and reason. Their booking appears in that doctor's schedule, and patients can cancel their own upcoming appointments. The live backend currently has no appointment operations, so patient booking is unavailable in Live mode until scheduling is added to its API.
 
-| Route | Features |
-| --- | --- |
-| `/login` | Demo credentials, password visibility, interactive demo entry |
-| `/password-reset` | Demo email validation, password confirmation and local reset |
-| `/dashboard` | Computed summary metrics, activity chart, interactive calendar, upcoming visits and quick links |
-| `/appointments` | Search, date/status filters, list/calendar views, booking, 30-minute overlap detection, cancellation and CSV export |
-| `/session?patient=PT-1001&appointment=APT-201` | Patient information, sample vitals, clinical notes, diagnosis and prescription dialogs, start/complete visit |
-| `/records?patient=PT-1001` | Searchable directory, overview, diagnoses, prescriptions, visit history, clinical notes, patient QR generation/download and CSV export |
-| `/profile` | Editable clinician information and weekly availability |
-| `/pharmacy` | Medicine catalog, category/stock filters, new medicine dialog, stock receipts, prescription queue, QR camera scanner and patient ID fallback |
-| `/reports` | Medicine movement, patient analysis by case, age distribution and appointment reports with date filters and CSV exports |
+## Configuration and deployment
 
-## Try the connected workflow
+Defaults work without an environment file. See [.env.example](.env.example):
 
-1. Start Olivia Rhye’s consultation from the dashboard.
-2. Add a diagnosis, write and save a note, and create a prescription.
-3. Complete the visit. The appointment and clinical record update together.
-4. Open the medical record and generate/download Olivia’s QR code.
-5. In Pharmacy, choose **Scan patient QR**. Scan the generated code, or enter `PT-1001`.
-6. Review allergies, medical information and pending prescriptions.
-7. Serve a prescription and confirm. Stock decreases, the prescription leaves the pending queue, and the dispense is added to medicine movement reports.
-8. Receive stock or add a medicine to see stock-receipt entries in reports.
+```dotenv
+NEXT_PUBLIC_BACKEND_MODE=live
+LIVE_GRAPHQL_URL=https://unstarched-maritally-ike.ngrok-free.dev/graphql
+NEXT_PUBLIC_SIMULATION_GRAPHQL_URL=http://localhost:4000/graphql
+```
 
-The QR contains only the patient ID. Camera scanning requires HTTPS or localhost and camera permission. Camera streams stop when the scanner closes. Filters and CSV exports use the current browser dataset.
+`LIVE_GRAPHQL_URL` is server-only. The browser uses `/api/backend/`; the Next.js route forwards to the configured upstream with the ngrok warning-bypass header. This avoids the live endpoint's failing browser preflight and never accepts an upstream URL from a caller. Requests are uncached and financial transport failures are not automatically retried.
 
-## Data and limitations
+**Next.js must run as a server now.** `npm run build` creates the Next.js production build; `npm start` runs it. The former static `out/` export cannot provide the live proxy. Restart Next.js after changing environment settings. Windows and WSL dependencies must match the operating system where npm runs.
 
-All records are synthetic. All demo activity is dated **31 October 2026 (SAST)** for consistency with the provided task date; appointment dates and report periods are editable. Clinical vitals are explicitly labelled sample values. Prescription dosages are entered by the user; the app does not generate treatment recommendations.
+## Simulation workflow
 
-State is saved under `emerald-care-v1` in localStorage. A session is stored in sessionStorage. Data is not shared across users, tabs or devices, and clearing browser storage restores the seed dataset. The profile’s availability is an editable preference; demo appointment slots use fixed practice hours and conflict checks. Stock uses a single catalog expiry date, rather than per-batch tracking.
+1. Sign in as doctor and open Olivia's consultation. Click **Start visit**.
+2. Record vitals, add a diagnosis, save notes and create a prescription.
+3. **Complete visit** charges the consultation once and releases prescription items.
+4. Pharmacist signs into a separate tab and generates a one-time login QR. Patient signs into their portal, scans/pastes the staff code, reviews the provider and approves.
+5. Pharmacist reviews the connected patient and confirms dispensing. Wallets, stock, prescription status and reports update together.
+6. Either person can disconnect. Pharmacy patient access clears. Staff QR challenges last two minutes and work once; approved links last 30 minutes.
 
-Before using actual patient data, add server authentication and role-based access, durable database storage, password-reset email delivery, server validation and transactions, audit history, per-batch inventory and the required operational controls. The current local demo contains none of those backend services.
+Live mode uses the backend's supported reverse direction: the **patient generates the QR**, then the doctor/pharmacist scans it in Patient connections or Pharmacy. A live doctor enters medicine names directly because the live API does not provide a doctor medicine catalog. Live vitals map heart rate to `pulse` and weight to `weightKg`; oxygen saturation is not exposed. Clinical notes use the backend's vitals notes field. Patient profiles use date of birth and sex; blood group is not exposed.
 
-## Browser verification
+## Checks
 
 ```bash
+npm run check:live
+npm run typecheck
+npm run test:backend
 npm run build
 npm run test:e2e
 ```
 
-The test runner starts a local static server for `out/` automatically (Python 3 is required), or reuses a server already running on port 3000.
+`check:live` performs read-only health and schema validation against the current live service. Browser tests exercise simulation plus live-adapter fixtures validated against [backend/schema.live.graphql](backend/schema.live.graphql). No live financial mutations are made by these tests. Live staff account verification requires actual staff identifiers assigned by that service.
 
-Playwright uses an existing Chromium installation when `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` is set; otherwise install its supported browser using `npx playwright install chromium`. Tests cover sign-in/reset, booking conflicts, clinical record updates, QR ID lookup, dispensing/stock/report synchronization, stock receipts, profile persistence, filtered exports and mobile layouts.
-
-Reference architecture: [Next.js App Router static exports](https://nextjs.org/docs/app/guides/static-exports).
+Simulation data lives in the mock server's memory and resets on restart. Live data follows the remote backend's persistence rules. Tokens are retained in each tab's sessionStorage for reloads; production session security should be agreed with the backend owner. See [INTEGRATION.md](INTEGRATION.md) for the contract, transport, limitations and backend handoff.
+# webfrontend
