@@ -1,0 +1,32 @@
+1:"$Sreact.fragment"
+2:"static/chunks/app/layout-c6cb48bd7273d3b5.js"
+3:I[9685,["177","$2"],"StoreProvider"]
+4:I[7121,[],""]
+5:I[4581,[],""]
+6:"static/chunks/500-fc3b64d9ff4a32a7.js"
+7:"static/chunks/app/not-found-ad1faf86e8b33956.js"
+8:I[8500,["500","$6","345","$7"],""]
+c:I[1304,[],"ClientPageRoot"]
+d:"static/chunks/311-d28ee2af7aa2c76e.js"
+e:"static/chunks/975-9a19fb1461dd69ec.js"
+f:"static/chunks/app/login/page-a5d5e8a1d9215ebc.js"
+10:I[2309,["500","$6","311","$d","975","$e","520","$f"],"default"]
+13:I[484,[],"OutletBoundary"]
+14:"$Sreact.suspense"
+16:"ViewportBoundary"
+17:I[484,[],"$16"]
+19:"MetadataBoundary"
+1a:I[484,[],"$19"]
+1c:I[7123,[],"default",1]
+:HL["/_next/static/css/d8b0f2d949905809.css","style"]
+a:X
+b:[["children",{"s":"__PAGE__","h":512,"d":{"r":["$","$1","c",{"children":[["$","$Lc",null,{"Component":"$10","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@11","$@12"]}}],null,["$","$L13",null,{"children":["$","$14",null,{"name":"Next.MetadataOutlet","children":"$@15"}]}]]}],"p":false,"v":null}}]]
+9:[["children",{"s":"login","h":512,"d":{"r":["$","$1","c",{"children":[null,["$","$L4",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],"p":false,"v":"$a"},"c":"$Qb"}]]
+0:{"P":null,"c":["","login",""],"q":"","i":false,"t":{"t":{"s":"","h":528,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/css/d8b0f2d949905809.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]],["$","html",null,{"lang":"en","children":["$","body",null,{"children":["$","$L3",null,{"children":["$","$L4",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","div",null,{"className":"app-loading","children":[["$","span",null,{"className":"eyebrow","children":"EMERALD CARE · 404"}],["$","h1",null,{"children":"Let’s get you back on track."}],["$","p",null,{"children":"This page isn’t part of your workspace."}],["$","$L8",null,{"className":"button primary","href":"/dashboard","children":"Back to dashboard"}]]}],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}]}]}]]}],"p":false,"v":null},"c":"$Q9"},"h":{"r":["$","$1","h",{"children":[null,["$","$L17",null,{"children":"$L18"}],["$","$L1a",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$14",null,{"name":"Next.Metadata","children":"$L1b"}]}],null]}],null]}],"p":false,"v":null}},"m":"$undefined","G":["$1c",[]],"S":true,"r":"$undefined","s":"$undefined","a":"$undefined","l":"$undefined","p":"$undefined","d":"$undefined","b":"ak18bZcBL5N7HDmdO9A6m"}
+a:C
+11:{}
+12:"$b:0:1:d:r:props:children:0:props:serverProvidedParams:params"
+18:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+1d:I[6869,[],"IconMark"]
+15:null
+1b:[["$","title","0",{"children":"Emerald Care — Clinical Workspace"}],["$","meta","1",{"name":"description","content":"A connected clinical workspace for appointments, patient care, medical records and pharmacy management."}],["$","link","2",{"rel":"icon","href":"/icon.svg?c1f00f00efd00ab7","type":"image/svg+xml","sizes":"any"}],["$","$L1d","3",{}]]
