@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Plus, Search, List, CalendarDays, ChevronLeft, ChevronRight, ArrowUpRight, Download, Clock3, CheckCircle2, XCircle, CalendarCheck2 } from 'lucide-react';
+import { UnavailableLive } from '@/components/backend/live-features';
 import { useStore } from '@/lib/store';
 import { TODAY, dateLabel, type Appointment } from '@/lib/data';
 import { PageHeading, Panel, Avatar, Badge, Stat, Toast, Empty, Modal, downloadCSV } from '@/components/ui';
+import PatientAppointments from '@/components/patient-appointments';
 import { AppointmentForm } from '@/components/appointment-form';
 export default function Appointments() {
   const {
-    state,
-    updateAppointment
+    state, mode, user,
+    updateAppointment, run, busy
   } = useStore();
   const [booking, setBooking] = useState(false);
   const [toast, setToast] = useState('');
@@ -35,6 +37,8 @@ export default function Appointments() {
   function exportData() {
     downloadCSV('emerald-appointments.csv', ['Appointment', 'Patient', 'Date', 'Time', 'Type', 'Status'], filtered.map(a => [a.id, state.patients.find(p => p.id === a.patientId)!.name, a.date, a.time, a.type, a.status]));
   }
+  if (user?.role === 'PATIENT') return <PatientAppointments />;
+  if (mode === 'live') return <UnavailableLive feature="Appointment booking" />;
   return <><PageHeading eyebrow="A LITTLE PLANNING. BETTER CARE." title="Appointments" description="Keep your day organized and your patients connected." actions={<><button className="button" onClick={exportData}><Download size={16} /> Export</button><button className="button primary" onClick={() => setBooking(true)}><Plus size={17} /> New appointment</button></>} /><div className="stats-grid"><Stat label="All appointments" value={state.appointments.length} detail="Across your practice" icon={<CalendarDays size={19} />} accent /><Stat label="Upcoming" value={state.appointments.filter(a => a.date >= TODAY && !['Completed', 'Cancelled'].includes(a.status)).length} detail="Ready for your care" icon={<Clock3 size={19} />} /><Stat label="Completed" value={state.appointments.filter(a => a.status === 'Completed').length} detail="Visits successfully concluded" icon={<CheckCircle2 size={19} />} /><Stat label="Cancelled" value={state.appointments.filter(a => a.status === 'Cancelled').length} detail="Available to rebook" icon={<XCircle size={19} />} /></div><Panel title="Your appointment book" subtitle="A clear view of every visit" action={<div className="segmented"><button aria-label="List view" className={view === 'list' ? 'selected' : ''} onClick={() => setView('list')}><List size={17} /></button><button aria-label="Calendar view" className={view === 'calendar' ? 'selected' : ''} onClick={() => {
         setView('calendar');
         setRange('All dates');
@@ -61,11 +65,11 @@ export default function Appointments() {
     }} />}{selected && (() => {
       const current = state.appointments.find(a => a.id === selected.id)!;
       const p = state.patients.find(p => p.id === current.patientId)!;
-      return <Modal title="Appointment details" description={current.id} onClose={() => setSelected(null)}><div className="modal-body"><div className="person-cell"><Avatar person={p} size="lg" /><span><h3>{p.name}</h3><small>{p.id} · {p.age} years · {p.gender}</small></span></div><div className="detail-grid"><div><span>Date</span><strong>{dateLabel(current.date)}</strong></div><div><span>Time</span><strong>{current.time} · 30 minutes</strong></div><div><span>Visit type</span><strong>{current.type}</strong></div><div><span>Status</span><Badge>{current.status}</Badge></div><div className="full"><span>Reason for visit</span><strong>{current.reason}</strong></div></div></div><div className="modal-actions">{!['Completed', 'Cancelled'].includes(current.status) && <button className="button danger" onClick={() => {
-            updateAppointment(current.id, 'Cancelled');
+      return <Modal title="Appointment details" description={current.id} onClose={() => setSelected(null)}><div className="modal-body"><div className="person-cell"><Avatar person={p} size="lg" /><span><h3>{p.name}</h3><small>{p.id} · {p.age} years · {p.gender}</small></span></div><div className="detail-grid"><div><span>Date</span><strong>{dateLabel(current.date)}</strong></div><div><span>Time</span><strong>{current.time} · 30 minutes</strong></div><div><span>Visit type</span><strong>{current.type}</strong></div><div><span>Status</span><Badge>{current.status}</Badge></div><div className="full"><span>Reason for visit</span><strong>{current.reason}</strong></div></div></div><div className="modal-actions">{!['Completed', 'Cancelled'].includes(current.status) && <button className="button danger" disabled={busy} onClick={() => run(async () => {
+            await updateAppointment(current.id, 'Cancelled');
             setToast('Appointment cancelled');
             setSelected(null);
-          }}>Cancel appointment</button>}<Link className="button primary" href={`/session?patient=${p.id}&appointment=${current.id}`}>Open patient session <ArrowRightIcon /></Link></div></Modal>;
+          })}>Cancel appointment</button>}<Link className="button primary" href={`/session?patient=${p.id}&appointment=${current.id}`}>Open patient session <ArrowRightIcon /></Link></div></Modal>;
     })()}{toast && <Toast message={toast} onClose={() => setToast('')} />}</>;
 }
 function ArrowRightIcon() {

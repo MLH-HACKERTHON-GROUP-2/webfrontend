@@ -2,30 +2,47 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, KeyRound, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, KeyRound, ArrowRight } from 'lucide-react';
 import { Brand, FormField, ErrorMessage } from '@/components/ui';
-import { DEMO_EMAIL } from '@/lib/data';
-export default function PasswordReset() {
-  const [step, setStep] = useState(0);
-  const [error, setError] = useState('');
-  function submit(e: FormEvent<HTMLFormElement>) {
+import { useStore, roleHome } from '@/lib/store';
+import { operations } from '@/lib/backend/operations';
+export default function AccountRecovery() {
+  const {
+    client,
+    signIn,
+    mode
+  } = useStore();
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState('doctor@emerald.care'),
+    [sent, setSent] = useState(false),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError('');
     const f = new FormData(e.currentTarget);
-    if (step === 0) {
-      if (String(f.get('email')).toLowerCase() !== DEMO_EMAIL) {
-        setError('Only the demo account can be reset in this workspace.');
-        return;
+    setBusy(true);
+    setError('');
+    try {
+      if (!sent) {
+        await client.request(operations.requestOtp, {
+          input: {
+            identifier
+          }
+        }, false);
+        setSent(true);
+      } else {
+        const user = await signIn(identifier, String(f.get('otp')));
+        router.replace(roleHome(user.role));
       }
-      setStep(1);
-    } else {
-      if (f.get('password') !== f.get('confirm')) {
-        setError('Passwords do not match.');
-        return;
-      }
-      localStorage.setItem('emerald-demo-password', String(f.get('password')));
-      setStep(2);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
-  return <div className="reset-page"><Link href="/login"><Brand /></Link><div className="reset-card"><span className="auth-small-icon">{step === 2 ? <CheckCircle2 size={28} /> : <KeyRound size={28} />}</span><span className="eyebrow">LET’S GET YOU BACK TO CARING</span><h1>{step === 0 ? 'Forgot your password?' : step === 1 ? 'A fresh start.' : 'You’re all set.'}</h1><p>{step === 0 ? 'Enter your demo email to reset your workspace password.' : step === 1 ? 'Choose a new password for this browser’s demo account.' : 'Your demo password has been updated in this browser.'}</p>{step < 2 ? <form onSubmit={submit} key={step}>{step === 0 ? <FormField label="Email address"><input name="email" type="email" defaultValue={DEMO_EMAIL} required /></FormField> : <><FormField label="New password"><input name="password" type="password" minLength={8} autoComplete="new-password" placeholder="At least 8 characters" required /></FormField><FormField label="Confirm new password"><input name="confirm" type="password" minLength={8} autoComplete="new-password" required /></FormField></>}<ErrorMessage message={error} /><button className="button primary auth-submit">{step === 0 ? 'Continue' : 'Reset demo password'}<ArrowRight size={17} /></button></form> : <Link className="button primary auth-submit" href="/login">Back to sign in <ArrowRight size={17} /></Link>}<div className="reset-note">Demo reset only. No email is sent and no production account is changed.</div><Link className="back-link" href="/login"><ArrowLeft size={15} /> Back to login</Link></div><p className="reset-copyright">© 2026 Emerald Care · Connected care, simplified.</p></div>;
+  return <div className="reset-page"><Link href="/login"><Brand /></Link><div className="reset-card"><span className="auth-small-icon"><KeyRound size={28} /></span><h1>Get back to caring.</h1><p>Your account uses a one-time code. Request a fresh code to sign in again.</p><form onSubmit={submit}><FormField label={mode === 'live' ? 'Email, phone or username' : 'Email address'}><input type="text" value={identifier} onChange={e => {
+            setIdentifier(e.target.value);
+            setSent(false);
+          }} required /></FormField>{sent && <FormField label="One-time code"><input name="otp" pattern="[0-9]{6}" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required /></FormField>}<ErrorMessage message={error} /><button className="button primary auth-submit" disabled={busy}>{sent ? 'Sign in' : 'Request code'}<ArrowRight size={17} /></button></form><div className="reset-note">{mode === 'simulation' ? 'Local test code: 000000. No recovery email is sent by the mock backend.' : 'Use the one-time code for your registered live account.'}</div><Link className="back-link" href="/login"><ArrowLeft size={15} />Back to login</Link></div></div>;
 }

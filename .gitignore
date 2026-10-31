@@ -7,3 +7,5 @@ playwright-report/
 .env*
 .openai/*.tar.gz
 .openai/execution-profile.json
+
+!.env.example

@@ -14,6 +14,9 @@ export type Patient = {
   color: string;
 };
 export type Appointment = {
+  doctorId?: string;
+  doctorName?: string;
+  hospitalName?: string;
   id: string;
   patientId: string;
   date: string;
@@ -43,6 +46,8 @@ export type Prescription = {
   instructions: string;
   status: 'Pending' | 'Dispensed';
   date: string;
+  finalized?: boolean;
+  sessionId?: string;
 };
 export type Diagnosis = {
   id: string;
@@ -74,7 +79,16 @@ export type Profile = {
   bio: string;
   available: string[];
 };
+export type WorkspaceSession = { startedAt?: string; id: string; patientId: string; doctorId: string; status: 'ACTIVE' | 'FINALIZED'; appointmentId: string | null; vitals: { bloodPressure?: string | null; heartRate?: number | null; temperature?: number | null; oxygenSaturation?: number | null; weight?: number | null } | null };
+export type AppointmentProvider = { id: string; name: string; hospitalId: string; hospitalName: string; consultationFee: number };
 export type AppState = {
+  appointmentProviders?: AppointmentProvider[];
+  liveNotice?: string;
+  accessExpiresAt?: number | null;
+  sessions?: WorkspaceSession[];
+  wallet?: number;
+  hospitalName?: string;
+  payments?: { id: string; kind: string; amount: number; balance: number; occurredAt: string }[];
   patients: Patient[];
   appointments: Appointment[];
   medicines: Medicine[];

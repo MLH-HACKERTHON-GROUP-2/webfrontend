@@ -1,416 +1,208 @@
-import { test, expect, type Page } from '@playwright/test';
-import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
-import jsQR from 'jsqr';
-const {
-  PNG
-} = createRequire(process.cwd() + '/package.json')('pngjs');
-async function enter(page: Page, path = '/dashboard') {
-  await page.addInitScript(() => sessionStorage.setItem('emerald-session', 'demo'));
-  await page.goto(path);
-  await expect(page.locator('.sidebar')).toBeVisible();
-}
-test('login, rejected credentials, password reset and sign out', async ({
-  page
-}) => {
+import { test, expect } from '@playwright/test';
+import { login, chooseDate, createPair, approve } from './helpers';
+test('normal login validates OTP, restores sessions and signs out', async ({ page }) => {
   await page.goto('/dashboard');
   await expect(page).toHaveURL(/login/);
-  await page.getByLabel('Password', {
-    exact: true
-  }).fill('wrong-pass');
-  await page.getByRole('button', {
-    name: 'Sign in',
-    exact: true
-  }).click();
-  await expect(page.locator('.error-message')).toContainText('Use the demo account');
-  await page.getByRole('link', {
-    name: 'Forgot password?'
-  }).click();
-  await page.getByRole('button', {
-    name: 'Continue',
-    exact: true
-  }).click();
-  await page.getByLabel('New password', {
-    exact: true
-  }).fill('NewEmerald2026!');
-  await page.getByLabel('Confirm new password').fill('NewEmerald2026!');
-  await page.getByRole('button', {
-    name: 'Reset demo password'
-  }).click();
-  await expect(page.getByRole('heading', {
-    name: 'You’re all set.'
-  })).toBeVisible();
-  await page.getByRole('link', {
-    name: 'Back to sign in'
-  }).click();
-  await page.getByLabel('Password', {
-    exact: true
-  }).fill('NewEmerald2026!');
-  await page.getByRole('button', {
-    name: 'Sign in',
-    exact: true
-  }).click();
+  await page.getByRole('button', { name: 'Simulation', exact: true }).click();
+  await page.getByRole('button', { name: 'Request code', exact: true }).click();
+  await page.getByLabel('One-time code').fill('111111');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.locator('.error-message')).toContainText('000000');
+  await page.getByLabel('One-time code').fill('000000');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);
-  await page.getByRole('button', {
-    name: 'Sign out',
-    exact: true
-  }).click();
+  await expect(page.locator('.sidebar')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
+  await expect(page).toHaveURL(/login/);
+  await page.goto('/records');
   await expect(page).toHaveURL(/login/);
 });
-test('book a visit, reject a conflict, persist and cancel', async ({
-  page
-}) => {
-  await enter(page, '/appointments');
-  await page.getByRole('button', {
-    name: 'New appointment',
-    exact: true
-  }).click();
-  const modal = page.getByRole('dialog');
-  await modal.getByRole('combobox', {
-    name: 'Patient',
-    exact: true
-  }).selectOption('PT-1008');
-  await modal.getByLabel('Time', {
-    exact: true
-  }).fill('09:00');
-  await modal.getByLabel('Reason for visit').fill('Appointment test');
-  await modal.getByRole('button', {
-    name: 'Book appointment'
-  }).click();
-  await expect(modal.getByRole('alert')).toContainText('already booked');
-  await modal.getByLabel('Time', {exact: true}).fill('09:15');
-  await modal.getByRole('button', {name: 'Book appointment'}).click();
-  await expect(modal.locator('.error-message')).toContainText('overlaps');
-  await modal.getByLabel('Time', {
-    exact: true
-  }).fill('15:00');
-  await modal.getByRole('button', {
-    name: 'Book appointment'
-  }).click();
-  await expect(page.getByRole('status')).toContainText('booked');
+test('appointment booking uses custom calendars and enforces server conflicts across reloads', async ({ page }) => {
+  await login(page);
+  await page.goto('/appointments');
+  await page.getByRole('button', { name: 'New appointment', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'New appointment', exact: true });
+  await modal.getByRole('combobox', { name: 'Patient', exact: true }).selectOption('PT-1003');
+  await chooseDate(page, 'Appointment date', '2026-11-03');
+  await page.getByRole('combobox', { name: 'Appointment time' }).click();
+  await page.getByRole('option', { name: '12:00', exact: true }).click();
+  await modal.getByLabel('Reason for visit').fill('Shared backend booking');
+  await modal.getByRole('button', { name: 'Book appointment' }).click();
+  await expect(modal).toHaveCount(0);
   await page.reload();
-  const row = page.getByRole('row').filter({
-    hasText: 'Appointment test'
-  });
+  await page.getByLabel('Appointment date range').selectOption('All dates');
+  const row = page.getByRole('row').filter({ hasText: 'Shared backend booking' });
   await expect(row).toBeVisible();
-  await row.getByRole('button', {
-    name: 'View details'
-  }).click();
-  await page.getByRole('dialog').getByRole('button', {
-    name: 'Cancel appointment',
-    exact: true
-  }).click();
+  await page.getByRole('button', { name: 'New appointment', exact: true }).click();
+  await modal.getByRole('combobox', { name: 'Patient', exact: true }).selectOption('PT-1003');
+  await chooseDate(page, 'Appointment date', '2026-11-03');
+  await page.getByRole('combobox', { name: 'Appointment time' }).click();
+  await page.getByRole('option', { name: '12:15', exact: true }).click();
+  await modal.getByLabel('Reason for visit').fill('Overlapping booking');
+  await modal.getByRole('button', { name: 'Book appointment' }).click();
+  await expect(modal.locator('.error-message')).toContainText('overlaps');
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await row.getByRole('button', { name: 'View details' }).click();
+  await page.getByRole('button', { name: 'Cancel appointment', exact: true }).click();
   await expect(row).toContainText('Cancelled');
 });
-test('consultation connects to records, QR lookup, dispensing, stock and reports', async ({
-  page
-}) => {
-  await enter(page, '/session?patient=PT-1001&appointment=APT-201');
-  await page.getByRole('button', {
-    name: 'Add diagnosis',
-    exact: true
-  }).click();
-  let dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Diagnosis', {
-    exact: true
-  }).fill('Workflow test diagnosis');
-  await dialog.getByLabel('ICD-10 code (optional)').fill('Z00.0');
-  await dialog.getByLabel('Clinical assessment').fill('Synthetic assessment for workflow verification');
-  await dialog.getByRole('button', {
-    name: 'Save diagnosis'
-  }).click();
-  await expect(page.getByRole('heading', {
-    name: /Workflow test diagnosis/
-  })).toBeVisible();
-  await page.getByRole('button', {
-    name: 'New prescription',
-    exact: true
-  }).click();
-  dialog = page.getByRole('dialog');
-  await dialog.getByRole('combobox', {
-    name: 'Medicine',
-    exact: true
-  }).selectOption('MED-003');
-  await dialog.getByLabel('Dosage / frequency').fill('Demo clinician instructions');
-  await dialog.getByLabel('Quantity', {
-    exact: true
-  }).fill('10');
-  await dialog.getByLabel('Duration', {
-    exact: true
-  }).fill('Test duration');
-  await dialog.getByLabel('Additional instructions').fill('Synthetic workflow test only');
-  await dialog.getByRole('button', {
-    name: 'Create prescription'
-  }).click();
-  await expect(page.getByRole('status')).toContainText('pharmacy queue');
-  await page.getByLabel('Clinical notes', {
-    exact: true
-  }).fill('Workflow test clinical note');
-  await page.getByRole('button', {
-    name: 'Complete visit',
-    exact: true
-  }).click();
-  await page.getByRole('dialog').getByRole('button', {
-    name: 'Complete visit',
-    exact: true
-  }).click();
-  await expect(page.getByRole('button', {
-    name: 'Visit closed'
-  })).toBeDisabled();
-  await page.locator('.patient-banner').getByRole('link', {
-    name: 'Medical records',
-    exact: true
-  }).click();
-  await expect(page.getByRole('heading', {
-    name: /Workflow test diagnosis/
-  })).toBeVisible();
-  await page.getByRole('button', {
-    name: 'Patient QR code'
-  }).click();
-  await expect(page.getByRole('dialog').getByRole('img')).toHaveAttribute('src', /^data:image\/png/);
-  await expect(page.getByRole('link', {
-    name: 'Download QR'
-  })).toHaveAttribute('download', 'PT-1001-qr.png');
-  const qrSource = await page.getByRole('dialog').getByRole('img').getAttribute('src');
-  const image = PNG.sync.read(Buffer.from(qrSource!.split(',')[1], 'base64'));
-  expect(jsQR(new Uint8ClampedArray(image.data), image.width, image.height)?.data).toBe('PT-1001');
-  await page.getByRole('button', {
-    name: 'Close dialog'
-  }).click();
-  await page.goto('/pharmacy');
-  await page.getByRole('button', {
-    name: 'Scan patient QR',
-    exact: true
-  }).first().click();
-  dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Patient ID', {
-    exact: true
-  }).fill('PT-invalid');
-  await dialog.getByRole('button', {
-    name: 'Look up patient'
-  }).click();
-  await expect(dialog.getByRole('alert')).toContainText('Patient not found');
-  await dialog.getByLabel('Patient ID', {
-    exact: true
-  }).fill('PT-1001');
-  await dialog.getByRole('button', {
-    name: 'Look up patient'
-  }).click();
-  await expect(page.getByRole('dialog').getByRole('heading', {
-    name: 'Olivia Rhye'
-  })).toBeVisible();
-  const rx = page.locator('.dispense-prescription').filter({
-    hasText: 'Paracetamol'
-  });
-  await rx.getByRole('button', {
-    name: 'Serve prescription'
-  }).click();
-  await page.getByRole('button', {
-    name: 'Confirm served'
-  }).click();
-  await expect(page.getByRole('status')).toContainText('Stock and reports updated');
-  await expect(page.locator('.dispense-prescription').filter({
-    hasText: 'Paracetamol'
-  })).toHaveCount(0);
-  await page.getByRole('button', {
-    name: 'Close patient'
-  }).click();
-  expect(await page.locator('body').evaluate(el => el.style.overflow)).not.toBe('hidden');
-  const medicine = page.locator('.medicine-card').filter({
-    hasText: 'Paracetamol'
-  });
-  await expect(medicine.locator('.medicine-stock')).toContainText('510');
+test('patients can book and cancel their own appointments with a selected hospital and doctor', async ({ page, context }) => {
+  await login(page, 'patient@emerald.care');
+  await expect(page).toHaveURL(/portal/);
+  await expect(page.locator('.sidebar').getByRole('link', { name: 'My appointments' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My appointments' })).toBeVisible();
+  await page.goto('/appointments');
+  await page.getByRole('button', { name: 'Book appointment', exact: true }).first().click();
+  const modal = page.getByRole('dialog', { name: 'Book an appointment', exact: true });
+  await modal.getByRole('combobox', { name: 'Hospital' }).click();
+  await page.getByRole('option', { name: 'Emerald Medical Centre', exact: true }).click();
+  await modal.getByRole('combobox', { name: 'Doctor' }).click();
+  await page.getByRole('option', { name: 'Dr. Sarah Mitchell', exact: true }).click();
+  await expect(modal).toContainText('Consultation fee: R150');
+  await chooseDate(page, 'Appointment date', '2026-11-04');
+  await modal.getByRole('combobox', { name: 'Appointment time' }).click();
+  await page.getByRole('option', { name: '10:00', exact: true }).click();
+  await modal.getByLabel('Reason for visit').fill('Patient requested a checkup');
+  await modal.getByRole('button', { name: 'Book appointment' }).click();
+  await expect(modal).toHaveCount(0);
+  await expect(page.locator('.patient-appointment')).toContainText('Patient requested a checkup');
+
+  const doctor = await context.newPage();
+  await login(doctor);
+  await doctor.goto('/appointments');
+  await doctor.getByLabel('Appointment date range').selectOption('All dates');
+  const row = doctor.getByRole('row').filter({ hasText: 'Patient requested a checkup' });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText('Olivia Rhye');
+
+  await page.getByRole('button', { name: 'Cancel appointment', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Cancel this appointment?' }).getByRole('button', { name: 'Confirm cancellation' }).click();
+  await expect(page.locator('.patient-appointment')).toContainText('Cancelled');
+  await doctor.reload();
+  await doctor.getByLabel('Appointment status').selectOption('Cancelled');
+  await doctor.getByLabel('Appointment date range').selectOption('All dates');
+  await expect(row).toContainText('Cancelled');
+});
+test('actual consultation shares records, payments and prescriptions with patient and pharmacy apps', async ({ page: doctor, context }) => {
+  await login(doctor);
+  const patient = await context.newPage();
+  await login(patient, 'patient@emerald.care');
+  await expect(patient).toHaveURL(/portal/);
+  await doctor.goto('/session?patient=PT-1001&appointment=APT-201');
+  await doctor.getByRole('button', { name: 'Start visit', exact: true }).click();
+  await expect(doctor.getByRole('button', { name: 'Record vitals', exact: true })).toBeEnabled();
+  await doctor.getByRole('button', { name: 'Record vitals', exact: true }).click();
+  await doctor.getByLabel('Heart rate (bpm)').fill('74');
+  await doctor.getByRole('button', { name: 'Save vitals', exact: true }).click();
+  await expect(doctor.locator('.vitals-grid')).toContainText('74');
+  await doctor.getByRole('button', { name: 'Add diagnosis', exact: true }).click();
+  const diagnosis = doctor.getByRole('dialog', { name: 'Add diagnosis', exact: true });
+  await diagnosis.getByLabel('Diagnosis', { exact: true }).fill('Shared consultation diagnosis');
+  await diagnosis.getByLabel('ICD-10 code (optional)').fill('Z00');
+  await diagnosis.getByLabel('Clinical assessment').fill('Assessment recorded in the actual workspace');
+  await diagnosis.getByRole('button', { name: 'Save diagnosis' }).click();
+  await expect(diagnosis).toHaveCount(0);
+  await doctor.getByLabel('Clinical notes', { exact: true }).fill('Clinical note shared through the backend');
+  await doctor.getByRole('button', { name: 'Save note', exact: true }).click();
+  await doctor.getByRole('button', { name: 'Add prescription', exact: true }).click();
+  const rx = doctor.getByRole('dialog', { name: 'New prescription', exact: true });
+  await rx.getByRole('combobox', { name: 'Medicine', exact: true }).selectOption('MED-003');
+  await rx.getByLabel('Dosage / frequency').fill('Synthetic clinician instructions');
+  await rx.getByLabel('Quantity', { exact: true }).fill('10');
+  await rx.getByLabel('Duration', { exact: true }).fill('Test course');
+  await rx.getByRole('button', { name: 'Create prescription' }).click();
+  await expect(rx).toHaveCount(0);
+  await doctor.getByRole('button', { name: 'Complete visit', exact: true }).click();
+  await doctor.getByRole('dialog', { name: 'Complete this visit?' }).getByRole('button', { name: 'Complete visit', exact: true }).click();
+  await expect(patient.locator('.stat-card').filter({ hasText: 'Patient wallet' })).toContainText('850');
+  await patient.goto('/records');
+  await expect(patient.locator('.record-detail')).toContainText('Shared consultation diagnosis');
+  await expect(patient.locator('.record-detail')).toContainText('Clinical note shared through the backend');
+  await patient.goto('/portal');
+  const pharmacy = await context.newPage();
+  await login(pharmacy, 'pharmacy@emerald.care');
+  await expect(pharmacy).toHaveURL(/pharmacy/);
+  await expect(pharmacy.locator('.sidebar').getByRole('link', { name: 'Patient session', exact: true })).toHaveCount(0);
+  const link = await createPair(pharmacy);
+  await approve(patient, link);
+  await expect(pharmacy.locator('.pairing-patient')).toContainText('Olivia Rhye');
+  await pharmacy.getByRole('link', { name: 'Open prescription queue', exact: true }).click();
+  const info = pharmacy.getByRole('dialog', { name: 'Patient & prescriptions', exact: true });
+  await expect(info).toContainText('Shared consultation diagnosis');
+  await info.locator('.dispense-prescription').filter({ hasText: 'Paracetamol' }).getByRole('button', { name: 'Serve prescription', exact: true }).click();
+  await pharmacy.getByRole('button', { name: 'Confirm served', exact: true }).click();
+  await expect(patient.locator('.stat-card').filter({ hasText: 'Patient wallet' })).toContainText('844');
+  await expect(info.locator('.dispense-prescription').filter({ hasText: 'Paracetamol' })).toHaveCount(0);
+  await info.getByRole('button', { name: 'Close patient', exact: true }).click();
+  await pharmacy.goto('/pharmacy');
+  await pharmacy.getByLabel('Search medicines').fill('Paracetamol');
+  await expect(pharmacy.locator('.medicine-card')).toContainText('510');
+  await pharmacy.screenshot({ path: 'test-results/actual-pharmacy.png', fullPage: true });
+  await pharmacy.goto('/reports');
+  await expect(pharmacy.getByRole('row').filter({ hasText: 'Paracetamol' }).filter({ hasText: 'Dispensed' })).toContainText('10');
+  await doctor.reload();
+  await expect(doctor.getByRole('button', { name: 'Start visit', exact: true })).toBeVisible();
+  await patient.close(); await pharmacy.close();
+});
+test('pharmacy inventory additions and stock receipts persist and appear in movement reports', async ({ page }) => {
+  await login(page, 'pharmacy@emerald.care');
+  await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Add new medicine', exact: true });
+  await modal.getByLabel('Medicine name').fill('Workspace Test Medicine');
+  await modal.getByLabel('Generic name').fill('Test generic');
+  await modal.getByLabel('Strength', { exact: true }).fill('5 mg');
+  await modal.getByLabel('Opening stock (units)').fill('20');
+  await modal.getByLabel('Price per unit (ZAR)').fill('2');
+  await chooseDate(page, 'Expiry date', '2028-12-31');
+  await modal.getByRole('button', { name: 'Add medicine', exact: true }).click();
+  await expect(modal).toHaveCount(0);
+  await page.getByLabel('Search medicines').fill('Workspace Test Medicine');
+  await page.locator('.medicine-card').getByRole('button', { name: 'Receive stock' }).click();
+  await page.getByLabel('Quantity received (units)').fill('15');
+  await page.getByRole('dialog', { name: 'Receive medicine stock' }).getByRole('button', { name: 'Receive stock', exact: true }).click();
   await page.reload();
-  await expect(medicine.locator('.medicine-stock')).toContainText('510');
+  await page.getByLabel('Search medicines').fill('Workspace Test Medicine');
+  await expect(page.locator('.medicine-card')).toContainText('35');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  expect((await download).suggestedFilename()).toContain('catalog');
   await page.goto('/reports');
-  await page.getByLabel('Movement type').selectOption('Dispensed');
-  const movement = page.getByRole('row').filter({
-    hasText: 'Paracetamol'
-  });
-  await expect(movement).toContainText('−10');
-  await page.getByRole('button', {
-    name: 'Patient analysis',
-    exact: true
-  }).click();
-  await page.getByLabel('Filter patients by case').selectOption('Hypertension');
-  await expect(page.locator('tbody tr')).toHaveCount(2);
-  const dl = page.waitForEvent('download');
-  await page.getByRole('button', {
-    name: 'Export report'
-  }).click();
-  const download = await dl;
-  expect(download.suggestedFilename()).toBe('emerald-patient-analysis.csv');
-  const csv = readFileSync((await download.path())!, 'utf8');
-  expect(csv).toContain('Olivia Rhye');
-  expect(csv).toContain('Drew Cano');
-  expect(csv).not.toContain('Phoenix Baker');
+  await expect(page.getByRole('row').filter({ hasText: 'Workspace Test Medicine' })).toHaveCount(2);
 });
-test('add medicine and receive stock creates report entries', async ({
-  page
-}) => {
-  await enter(page, '/pharmacy');
-  await page.getByRole('button', {
-    name: 'Add medicine',
-    exact: true
-  }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Medicine name', {
-    exact: true
-  }).fill('Test medicine');
-  await dialog.getByLabel('Generic name').fill('Test generic');
-  await dialog.getByLabel('Strength', {
-    exact: true
-  }).fill('10 mg');
-  await dialog.getByLabel('Opening stock (units)').fill('20');
-  await dialog.getByLabel('Price per unit (ZAR)').fill('4.50');
-  await dialog.getByLabel('Expiry date').fill('2028-12-31');
-  await dialog.getByRole('button', {
-    name: 'Add medicine',
-    exact: true
-  }).click();
-  const card = page.locator('.medicine-card').filter({
-    hasText: 'Test medicine'
-  });
-  await expect(card).toContainText('20');
-  await card.getByRole('button', {
-    name: 'Receive stock'
-  }).click();
-  await page.getByLabel('Quantity received (units)').fill('25');
-  await page.getByRole('dialog').getByRole('button', {
-    name: 'Receive stock',
-    exact: true
-  }).click();
-  await expect(card.locator('.medicine-stock')).toContainText('45');
-  await page.goto('/reports');
-  await expect(page.getByRole('row').filter({
-    hasText: 'Test medicine'
-  })).toHaveCount(2);
-});
-test('profile edits persist and report filters handle empty results', async ({
-  page
-}) => {
-  await enter(page, '/profile');
-  await page.getByLabel('Full name').fill('Dr. Alex Morgan');
-  await page.getByRole('button', {
-    name: 'Sat',
-    exact: true
-  }).click();
-  await page.getByRole('button', {
-    name: 'Save changes'
-  }).click();
+test('doctor profile saves to backend, reports filter, routes fit mobile', async ({ page }) => {
+  await login(page);
+  await page.goto('/profile');
+  await page.getByLabel('Phone number').fill('+27 11 555 0199');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.toast')).toContainText('Profile and availability updated');
   await page.reload();
-  await expect(page.getByLabel('Full name')).toHaveValue('Dr. Alex Morgan');
-  await expect(page.getByRole('button', {
-    name: 'Sat',
-    exact: true
-  })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Phone number')).toHaveValue('+27 11 555 0199');
   await page.goto('/reports');
-  await page.getByLabel('Report start date').fill('2026-10-31');
-  await page.getByRole('button', {
-    name: 'Appointments',
-    exact: true
-  }).click();
-  await page.getByLabel('Report appointment status').selectOption('Completed');
-  await expect(page.getByText('No appointments in this period')).toBeVisible();
-});
-test('all routes render without browser errors and fit mobile', async ({
-  page
-}) => {
-  const errors: string[] = [];
-  page.on('pageerror', e => errors.push(e.message));
-  await page.setViewportSize({
-    width: 390,
-    height: 844
-  });
-  await enter(page);
-  for (const route of ['/dashboard', '/appointments', '/session', '/records', '/profile', '/pharmacy', '/reports']) {
-    await page.goto(route);
-    await expect(page.locator('h1')).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), route).toBe(true);
+  await page.getByRole('button', { name: 'Patient analysis', exact: true }).click();
+  await page.getByLabel('Filter patients by case').selectOption('Respiratory');
+  await expect(page.getByRole('row').filter({ hasText: 'Demi Wilkinson' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Olivia Rhye' })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  for (const path of ['/dashboard', '/appointments', '/session', '/records', '/profile', '/reports', '/connections']) {
+    await page.goto(path); await expect(page.locator('.page-content')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
-  await page.getByRole('button', {
-    name: 'Open navigation'
-  }).click();
-  await expect(page.locator('.sidebar')).toHaveClass(/open/);
-  await page.locator('.sidebar').getByRole('link', {
-    name: 'Overview',
-    exact: true
-  }).click();
-  await expect(page).toHaveURL(/dashboard/);
-  await expect(page.locator('.sidebar')).not.toHaveClass(/open/);
   expect(errors).toEqual([]);
-  await page.screenshot({
-    path: 'test-results/dashboard-mobile.png',
-    fullPage: true
-  });
+  await page.goto('/dashboard');
+  await page.screenshot({ path: 'test-results/actual-doctor-mobile.png', fullPage: true });
 });
-test('desktop dashboard visual', async ({
-  page
-}) => {
-  await page.setViewportSize({
-    width: 1440,
-    height: 1100
-  });
-  await enter(page);
-  await expect(page.locator('.nav-item.active')).toContainText('Overview');
-  await page.screenshot({
-    path: 'test-results/dashboard-desktop.png',
-    fullPage: true
-  });
-  await page.goto('/login');
-  await page.screenshot({
-    path: 'test-results/login-desktop.png',
-    fullPage: true
-  });
-});
-test('camera scanner decodes a QR video frame and stops its stream', async ({
-  page
-}) => {
-  const QRCode = createRequire(process.cwd() + '/package.json')('qrcode');
-  const src = await QRCode.toDataURL('PT-1002', {
-    width: 260,
-    margin: 4
-  });
-  await page.addInitScript(({
-    src
-  }) => {
-    Object.defineProperty(navigator, 'mediaDevices', {
-      value: {
-        getUserMedia: async () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 640;
-          canvas.height = 480;
-          const ctx = canvas.getContext('2d')!;
-          const image = new Image();
-          image.src = src;
-          await image.decode();
-          const draw = () => {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, 640, 480);
-            ctx.drawImage(image, 190, 110, 260, 260);
-          };
-          draw();
-          const media = canvas.captureStream(10);
-          (window as any).__qrTestStream = media;
-          const timer = setInterval(draw, 100);
-          media.getTracks()[0].addEventListener('ended', () => clearInterval(timer));
-          return media;
-        }
-      }
-    });
-  }, {
-    src
-  });
-  await enter(page, '/pharmacy');
-  await page.getByRole('button', {
-    name: 'Scan patient QR',
-    exact: true
-  }).first().click();
-  await page.getByRole('button', {
-    name: 'Enable camera'
-  }).click();
-  await expect(page.getByRole('dialog').getByRole('heading', {
-    name: 'Phoenix Baker'
-  })).toBeVisible();
-  expect(await page.evaluate(() => (window as any).__qrTestStream.getTracks().every((track: MediaStreamTrack) => track.readyState === 'ended'))).toBe(true);
+test('custom calendar is accessible and Escape returns focus to trigger', async ({ page }) => {
+  await login(page);
+  await page.goto('/appointments');
+  await page.getByRole('button', { name: 'New appointment', exact: true }).click();
+  const trigger = page.getByRole('button', { name: 'Appointment date', exact: true });
+  await trigger.click();
+  await expect(page.getByRole('dialog', { name: 'Appointment date calendar', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'New appointment', exact: true })).toBeVisible();
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('input[type=date]')).toHaveCount(0);
 });

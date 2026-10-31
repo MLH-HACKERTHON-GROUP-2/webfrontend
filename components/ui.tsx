@@ -107,7 +107,7 @@ export function Modal({
       el?.close();
     };
   }, []);
-  return <dialog ref={dialog} aria-labelledby={titleId} className={`modal ${wide ? 'wide' : ''}`} onCancel={onClose} onClick={e => {
+  return <dialog ref={dialog} aria-label={title} className={`modal ${wide ? 'wide' : ''}`} onCancel={onClose} onClick={e => {
     if (e.target === e.currentTarget) {
       const r = e.currentTarget.getBoundingClientRect();
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose();

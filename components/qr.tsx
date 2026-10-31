@@ -27,13 +27,19 @@ export function PatientQR({
   return <Modal title="Patient QR code" description="Scan this code in the pharmacy to open the patient’s prescriptions." onClose={onClose}><div className="patient-qr">{src ? <img src={src} width={250} height={250} alt={`QR code for patient ${patient.id}`} /> : <p>Generating QR code…</p>}<h3>{patient.name}</h3><p>{patient.id}</p><small>This code contains only the patient ID.</small></div><div className="modal-actions"><button className="button" onClick={onClose}>Close</button>{src && <a className="button primary" href={src} download={`${patient.id}-qr.png`}><Download size={16} /> Download QR</a>}</div></Modal>;
 }
 export function ScanPatient({
-  patients,
+  patients = [],
   onClose,
-  onFound
+  onFound,
+  onScan,
+  title = "Scan patient QR code",
+  description = "Connect the right patient with the right prescription."
 }: {
-  patients: Patient[];
+  patients?: Patient[];
   onClose: () => void;
-  onFound: (id: string) => void;
+  onFound?: (id: string) => void;
+  onScan?: (value: string) => void;
+  title?: string;
+  description?: string;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -60,6 +66,11 @@ export function ScanPatient({
     };
   }, []);
   function resolve(text: string) {
+    if (onScan) {
+      stop();
+      onScan(text.trim());
+      return true;
+    }
     const normalized = text.trim().toUpperCase();
     const p = patients.find(p => p.id === normalized);
     if (!p) {
@@ -67,7 +78,7 @@ export function ScanPatient({
       return false;
     }
     stop();
-    onFound(p.id);
+    onFound?.(p.id);
     return true;
   }
   async function start() {
@@ -123,8 +134,8 @@ export function ScanPatient({
       setError('Camera access was unavailable. Allow camera access or enter the patient ID below.');
     }
   }
-  return <Modal title="Scan patient QR code" description="Connect the right patient with the right prescription." onClose={onClose}><div className="scan-body"><div className={`scanner ${camera ? 'running' : ''}`}><video ref={video} playsInline muted className={camera ? '' : 'hidden'} />{!camera && <><span className="scan-corners"><ScanLine size={62} strokeWidth={1} /></span><p>Position the patient’s QR code inside the frame</p></>}<div className="scanner-frame" />{camera && <div className="scan-line" />}</div><button className="button full-width" onClick={camera ? stop : start}>{camera ? <CameraOff size={17} /> : <Camera size={17} />} {camera ? 'Stop camera' : 'Enable camera'}</button><div className="auth-or"><span />or find the patient<span /></div><form onSubmit={e => {
+  return <Modal title={title} description={description} onClose={onClose}><div className="scan-body"><div className={`scanner ${camera ? 'running' : ''}`}><video ref={video} playsInline muted className={camera ? '' : 'hidden'} />{!camera && <><span className="scan-corners"><ScanLine size={62} strokeWidth={1} /></span><p>Position the patient’s QR code inside the frame</p></>}<div className="scanner-frame" />{camera && <div className="scan-line" />}</div><button className="button full-width" onClick={camera ? stop : start}>{camera ? <CameraOff size={17} /> : <Camera size={17} />} {camera ? 'Stop camera' : 'Enable camera'}</button><div className="auth-or"><span />or find the patient<span /></div><form onSubmit={e => {
         e.preventDefault();
         resolve(input);
-      }}><FormField label="Patient ID"><div className="input-with-button"><input value={input} onChange={e => setInput(e.target.value)} placeholder="e.g. PT-1001" required /><button className="button primary" aria-label="Look up patient"><Search size={17} /></button></div></FormField><p className="small-muted">Try PT-1001 to explore a pending demo prescription.</p><ErrorMessage message={error} /></form></div></Modal>;
+      }}><FormField label={onScan ? "Patient QR URL or token" : "Patient ID"}><div className="input-with-button"><input value={input} onChange={e => setInput(e.target.value)} placeholder={onScan ? "Paste the patient’s current QR URL" : "e.g. PT-1001"} required /><button className="button primary" aria-label="Look up patient"><Search size={17} /></button></div></FormField><p className="small-muted">{onScan ? 'The backend validates QR expiry and access after scanning.' : 'Try PT-1001 to explore a pending demo prescription.'}</p><ErrorMessage message={error} /></form></div></Modal>;
 }

@@ -1,0 +1,88 @@
+# LOCAL SIMULATION ONLY. schema.md is the integration guide; its authoritative
+# schema.graphql was not supplied. Input types, scalars, extra read fields and
+# subscription payload shapes here are provisional and require reconciliation.
+enum Role { PATIENT HOSPITAL_ADMIN DOCTOR PHARMACY SYSTEM_ADMIN }
+enum SessionStatus { ACTIVE FINALIZED }
+enum PrescriptionItemStatus { PENDING DISPENSED }
+type User { id: ID! name: String! identifier: String! role: Role! profileComplete: Boolean! }
+type AuthPayload { accessToken: String! refreshToken: String! user: User! }
+type Wallet { balance: Float! }
+type QrToken { token: String! qrCodeUrl: String! expiresAt: String! }
+type Vitals { bloodPressure: String heartRate: Int temperature: Float oxygenSaturation: Int weight: Float }
+type Diagnosis { notes: String! }
+type PrescriptionItem { id: ID! drugName: String! dosage: String! quantity: Int! status: PrescriptionItemStatus! dispensedAt: String }
+type Prescription { items: [PrescriptionItem!]! }
+type Session { id: ID! status: SessionStatus! startedAt: String! finalizedAt: String patient: Patient! doctor: Doctor! vitals: Vitals diagnosis: Diagnosis prescription: Prescription }
+type Patient { id: ID! publicId: String! user: User! age: Int gender: String bloodGroup: String allergies: String wallet: Wallet! sessions: [Session!]! }
+type Doctor { id: ID! user: User! hospitalId: ID! sessions: [Session!]! }
+type DrugPrice { drugName: String! price: Float! }
+type Hospital { id: ID! name: String! address: String! consultationFee: Float! wallet: Wallet! doctors: [Doctor!]! }
+type Pharmacy { id: ID! name: String! address: String! wallet: Wallet! drugPrices: [DrugPrice!]! }
+type PaymentEvent { id: ID! kind: String! amount: Float! balance: Float! occurredAt: String! }
+input OtpRequestInput { identifier: String! }
+input OtpVerificationInput { identifier: String! otp: String! }
+input PatientProfileInput { name: String! age: Int! gender: String! bloodGroup: String allergies: String }
+input VitalsInput { bloodPressure: String heartRate: Int temperature: Float oxygenSaturation: Int weight: Float }
+input DiagnosisInput { notes: String! }
+input PrescriptionItemInput { drugName: String! dosage: String! quantity: Int! }
+input PrescriptionInput { items: [PrescriptionItemInput!]! }
+input DrugPriceInput { drugName: String! price: Float! }
+input DoctorInput { name: String! identifier: String! }
+input HospitalInput { name: String! address: String! consultationFee: Float! adminName: String! adminIdentifier: String! }
+input PharmacyInput { name: String! address: String! userName: String! userIdentifier: String! }
+# One-time staff QR pairing extension (new simulation feature).
+enum PairingStatus { WAITING APPROVED REVOKED EXPIRED }
+type PairingPreview { id: ID! provider: User! expiresAt: String! }
+type PairingConnection { id: ID! status: PairingStatus! provider: User! expiresAt: String! connectionExpiresAt: String approvedAt: String patient: Patient pendingItems: [PrescriptionItem!]! payments: [PaymentEvent!]! }
+type LoginQr { token: String! pairingUrl: String! connection: PairingConnection! }
+scalar JSON
+enum WorkspaceAction { ADD_APPOINTMENT UPDATE_APPOINTMENT START_VISIT ADD_DIAGNOSIS ADD_PRESCRIPTION SAVE_NOTE SAVE_PROFILE ADD_MEDICINE RECEIVE_STOCK DISPENSE VERIFY_PATIENT SAVE_VITALS }
+type Query {
+  myWorkspace: JSON!
+  previewLoginQr(token: String!): PairingPreview!
+  pairingConnection(id: ID!): PairingConnection!
+  myPairings: [PairingConnection!]!
+  me: User!
+  myPatientProfile: Patient!
+  patientByQrToken(token: String!): Patient!
+  pendingPrescriptionItems(qrToken: String!): [PrescriptionItem!]!
+  myDoctor: Doctor!
+  myHospital: Hospital!
+  hospitalSessions(status: SessionStatus): [Session!]!
+  myPharmacy: Pharmacy!
+  allHospitals: [Hospital!]!
+  allPharmacies: [Pharmacy!]!
+}
+type Mutation {
+  workspaceAction(kind: WorkspaceAction!, input: JSON!): JSON!
+  createLoginQr: LoginQr!
+  approveLoginQr(token: String!): PairingConnection!
+  revokePairing(id: ID!): PairingConnection!
+  startPairedSession(connectionId: ID!): Session!
+  dispensePairedItem(connectionId: ID!, itemId: ID!): PrescriptionItem!
+  requestOtp(input: OtpRequestInput!): Boolean!
+  verifyOtp(input: OtpVerificationInput!): AuthPayload!
+  refreshToken(refreshToken: String!): AuthPayload!
+  completePatientProfile(input: PatientProfileInput!): User!
+  generateQrToken: QrToken!
+  topUpWallet(amount: Float!): Wallet!
+  startSession(qrToken: String!): Session!
+  recordVitals(sessionId: ID!, input: VitalsInput!): Session!
+  recordDiagnosis(sessionId: ID!, input: DiagnosisInput!): Session!
+  createPrescription(sessionId: ID!, input: PrescriptionInput!): Session!
+  finalizeSession(sessionId: ID!): Session!
+  setPharmacyDrugPrice(input: DrugPriceInput!): DrugPrice!
+  dispensePrescriptionItem(itemId: ID!): PrescriptionItem!
+  onboardDoctor(input: DoctorInput!): Doctor!
+  onboardHospital(input: HospitalInput!): Hospital!
+  onboardPharmacy(input: PharmacyInput!): Pharmacy!
+}
+type Subscription {
+  workspaceChanged: Boolean!
+  pairingUpdated(connectionId: ID!): PairingConnection!
+  sessionStarted: Session!
+  sessionFinalized: Session!
+  prescriptionReady: Session!
+  prescriptionDispensed: PrescriptionItem!
+  myPaymentEvents: PaymentEvent!
+}

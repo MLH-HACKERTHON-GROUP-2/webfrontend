@@ -1,20 +1,64 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { seed, type AppState, type Prescription, type Medicine, type Appointment, type Diagnosis, type Profile, uid, TODAY } from './data';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { type AppState, type Prescription, type Medicine, type Appointment, type Diagnosis, type Profile } from './data';
+import { BackendError, SimulationClient, extractQrToken } from './backend/client';
+import { operations } from './backend/operations';
+import type { AuthPayload, BackendUser, Role } from './backend/types';
+import { defaultBackendMode, sessionKeyFor, type BackendMode } from './backend/config';
+export const roleHome = (role: Role) => role === 'PHARMACY' ? '/pharmacy' : role === 'PATIENT' ? '/portal' : role === 'DOCTOR' ? '/dashboard' : '/administration';
+export function canVisit(role: Role, path: string) {
+  if (role === 'DOCTOR') return ['/dashboard', '/appointments', '/session', '/records', '/profile', '/reports', '/connections'].includes(path);
+  if (role === 'PHARMACY') return ['/pharmacy', '/records', '/reports', '/connections'].includes(path);
+  if (role === 'PATIENT') return ['/portal', '/records', '/appointments'].includes(path);
+  return ['/administration', ...(role === 'HOSPITAL_ADMIN' ? ['/records', '/reports'] : [])].includes(path);
+}
+const emptyState: AppState = {
+  patients: [],
+  appointments: [],
+  medicines: [],
+  prescriptions: [],
+  diagnoses: [],
+  movements: [],
+  notes: [],
+  profile: {
+    name: '',
+    email: '',
+    phone: '',
+    bio: '',
+    specialty: '',
+    available: []
+  },
+  sessions: [],
+  payments: []
+};
 type Store = {
   state: AppState;
   ready: boolean;
   storageError: boolean;
-  addAppointment: (item: Omit<Appointment, 'id' | 'status'>) => boolean;
-  updateAppointment: (id: string, status: Appointment['status']) => void;
-  addPrescription: (item: Omit<Prescription, 'id' | 'status' | 'date'>) => void;
-  addDiagnosis: (item: Omit<Diagnosis, 'id' | 'date'>) => void;
-  addMedicine: (item: Omit<Medicine, 'id'>) => void;
-  receiveStock: (id: string, quantity: number) => void;
-  dispense: (id: string) => void;
-  saveNote: (patientId: string, text: string) => void;
-  saveProfile: (profile: Profile) => void;
+  user: BackendUser | null;
+  client: SimulationClient;
+  busy: boolean;
+  error: string;
+  live: string;
+  mode: BackendMode;
+  setMode: (mode: BackendMode) => void;
+  signIn: (identifier: string, otp: string) => Promise<BackendUser>;
+  signOut: () => void;
+  reload: () => Promise<void>;
+  run: (action: () => Promise<void>) => Promise<void>;
+  startVisit: (patientId: string, appointmentId?: string) => Promise<void>;
+  addAppointment: (item: Omit<Appointment, 'id' | 'status'>) => Promise<boolean>;
+  updateAppointment: (id: string, status: Appointment['status']) => Promise<void>;
+  addPrescription: (item: Omit<Prescription, 'id' | 'status' | 'date'>) => Promise<void>;
+  addDiagnosis: (item: Omit<Diagnosis, 'id' | 'date'>) => Promise<void>;
+  addMedicine: (item: Omit<Medicine, 'id'>) => Promise<void>;
+  receiveStock: (id: string, quantity: number) => Promise<void>;
+  dispense: (id: string) => Promise<void>;
+  saveNote: (patientId: string, text: string) => Promise<void>;
+  saveProfile: (profile: Profile) => Promise<void>;
+  saveVitals: (patientId: string, vitals: NonNullable<NonNullable<AppState['sessions']>[number]['vitals']>) => Promise<void>;
+  verifyPatient: (value: string) => Promise<string>;
 };
 const Context = createContext<Store | null>(null);
 export function StoreProvider({
@@ -22,180 +66,270 @@ export function StoreProvider({
 }: {
   children: ReactNode;
 }) {
-  const [state, setState] = useState<AppState>(seed);
-  const [ready, setReady] = useState(false);
-  const [storageError, setStorageError] = useState(false);
-  useEffect(() => {
+  const [client] = useState(() => new SimulationClient());
+  const [mode, setModeState] = useState<BackendMode>(defaultBackendMode);
+  const [state, setState] = useState<AppState>(emptyState);
+  const [user, setUser] = useState<BackendUser | null>(null);
+  const [ready, setReady] = useState(false),
+    [storageError, setStorageError] = useState(false);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [live, setLive] = useState('Connecting…');
+  const generation = useRef(0),
+    reads = useRef(0),
+    writes = useRef(0),
+    mutationLock = useRef(false);
+  const persist = useCallback((auth: AuthPayload | null) => {
     try {
-      const data = localStorage.getItem('emerald-care-v1');
-      if (data) {
-        const parsed = JSON.parse(data);
-        if (!Array.isArray(parsed.patients) || !Array.isArray(parsed.medicines) || !Array.isArray(parsed.appointments)) throw Error('Invalid stored data');
-        setState({
-          ...seed,
-          ...parsed
-        });
-      }
+      if (auth) sessionStorage.setItem(sessionKeyFor(client.mode), JSON.stringify(auth));else sessionStorage.removeItem(sessionKeyFor(client.mode));
     } catch {
       setStorageError(true);
     }
-    setReady(true);
-  }, []);
+    setUser(auth?.user || null);
+    if (!auth) setState(emptyState);
+  }, [client]);
+  const reload = useCallback(async () => {
+    if (!client.auth) return;
+    const identity = generation.current,
+      request = ++reads.current;
+    const result = await client.request<{
+      myWorkspace: AppState;
+    }>(operations.workspace);
+    if (identity === generation.current && request === reads.current) setState(result.myWorkspace);
+  }, [client]);
   useEffect(() => {
-    if (ready) try {
-      localStorage.setItem('emerald-care-v1', JSON.stringify(state));
+    let alive = true;
+    client.onAuthChange = persist;
+    async function restore() {
+      try {
+        const current = sessionStorage.getItem('emerald-backend-mode') || defaultBackendMode;
+        const linkMode = new URLSearchParams(window.location.hash.slice(1)).get('mode');
+        const selected = !sessionStorage.getItem(sessionKeyFor(current === 'simulation' ? 'simulation' : 'live')) && linkMode === 'simulation' ? 'simulation' : current;
+        sessionStorage.setItem('emerald-backend-mode', selected);
+        const initialMode = selected === 'simulation' || selected === 'live' ? selected : defaultBackendMode;
+        client.mode = initialMode;
+        client.url = initialMode === 'live' ? '/api/backend/' : process.env.NEXT_PUBLIC_SIMULATION_GRAPHQL_URL || 'http://localhost:4000/graphql';
+        setModeState(initialMode);
+        const value = sessionStorage.getItem(sessionKeyFor(initialMode));
+        if (value) {
+          const auth = JSON.parse(value) as AuthPayload;
+          if (!auth.accessToken || !auth.refreshToken || !auth.user?.role) throw new Error('Invalid session');
+          client.setAuth(auth);
+          const result = await client.request<{
+            me: BackendUser;
+          }>(operations.me);
+          if (alive && client.auth) {
+            client.setAuth({
+              ...client.auth,
+              user: result.me
+            });
+            await reload();
+          }
+        }
+      } catch (e) {
+        if (!(e instanceof BackendError) || e.code !== 'CONNECTION_FAILED') client.clear();
+        if (alive) setError(e instanceof Error ? e.message : 'Could not restore your session.');
+      } finally {
+        if (alive) setReady(true);
+      }
+    }
+    void restore();
+    return () => {
+      alive = false;
+      client.onAuthChange = undefined;
+      generation.current++;
+    };
+  }, [client, persist, reload]);
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    const update = () => {
+      void reload().catch(e => {
+        if (alive) setError(e.message);
+      });
+    };
+    const stop = client.watchWorkspace(update, status => {
+      if (alive) {
+        setLive(status);
+        if (status === 'Live updates connected') update();
+      }
+    });
+    const visible = () => {
+      if (!document.hidden) update();
+    };
+    document.addEventListener('visibilitychange', visible);
+    const timer = setInterval(visible, 15000);
+    return () => {
+      alive = false;
+      stop();
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [userId, client, reload]);
+  useEffect(() => {
+    if (!state.accessExpiresAt || user?.role !== 'PHARMACY') return;
+    const timer = setTimeout(() => {
+      setState(s => ({
+        ...s,
+        patients: [],
+        prescriptions: [],
+        diagnoses: [],
+        notes: [],
+        sessions: []
+      }));
+      void reload().catch(e => setError(e.message));
+    }, Math.max(0, state.accessExpiresAt - Date.now()) + 25);
+    return () => clearTimeout(timer);
+  }, [state.accessExpiresAt, user?.role, reload]);
+  function setMode(next: BackendMode) {
+    if (client.auth) throw new Error('Sign out before switching backends.');
+    generation.current++;
+    reads.current++;
+    client.configure(next);
+    setModeState(next);
+    setState(emptyState);
+    setError('');
+    try {
+      sessionStorage.setItem('emerald-backend-mode', next);
+      sessionStorage.removeItem('emerald-pending-pair');
     } catch {
       setStorageError(true);
     }
-  }, [state, ready]);
-  function addAppointment(item: Omit<Appointment, 'id' | 'status'>) {
-    const minutes = (time: string) => {
-      const [hour, minute] = time.split(':').map(Number);
-      return hour * 60 + minute;
-    };
-    const start = minutes(item.time);
-    if (state.appointments.some(a => a.date === item.date && a.status !== 'Cancelled' && Math.abs(minutes(a.time) - start) < 30)) return false;
-    setState(s => ({
-      ...s,
-      appointments: [...s.appointments, {
-        ...item,
-        id: uid('APT'),
-        status: 'Confirmed'
-      }]
-    }));
-    return true;
   }
-  function updateAppointment(id: string, status: Appointment['status']) {
-    setState(s => ({
-      ...s,
-      appointments: s.appointments.map(a => a.id === id ? {
-        ...a,
-        status
-      } : a)
-    }));
+  async function signIn(identifier: string, otp: string) {
+    const result = await client.request<{
+      verifyOtp: AuthPayload;
+    }>(operations.verifyOtp, {
+      input: {
+        identifier,
+        otp
+      }
+    }, false);
+    generation.current++;
+    client.setAuth(result.verifyOtp);
+    setError('');
+    await reload();
+    return result.verifyOtp.user;
   }
-  function addPrescription(item: Omit<Prescription, 'id' | 'status' | 'date'>) {
-    setState(s => ({
-      ...s,
-      prescriptions: [...s.prescriptions, {
-        ...item,
-        id: uid('RX'),
-        status: 'Pending',
-        date: TODAY
-      }]
-    }));
+  function signOut() {
+    generation.current++;
+    reads.current++;
+    client.clear();
+    setError('');
+    setState(emptyState);
   }
-  function addDiagnosis(item: Omit<Diagnosis, 'id' | 'date'>) {
-    setState(s => ({
-      ...s,
-      diagnoses: [...s.diagnoses, {
-        ...item,
-        id: uid('DX'),
-        date: TODAY
-      }]
-    }));
-  }
-  function addMedicine(item: Omit<Medicine, 'id'>) {
-    const id = uid('MED');
-    setState(s => ({
-      ...s,
-      medicines: [...s.medicines, {
-        ...item,
-        id
-      }],
-      movements: [...s.movements, {
-        id: uid('MV'),
-        medicineId: id,
-        quantity: item.stock,
-        type: 'Stock received',
-        date: TODAY,
-        reference: 'New medicine'
-      }]
-    }));
-  }
-  function receiveStock(id: string, quantity: number) {
-    if (!Number.isInteger(quantity) || quantity <= 0) throw Error('Enter a positive whole quantity.');
-    setState(s => ({
-      ...s,
-      medicines: s.medicines.map(m => m.id === id ? {
-        ...m,
-        stock: m.stock + quantity
-      } : m),
-      movements: [...s.movements, {
-        id: uid('MV'),
-        medicineId: id,
-        quantity,
-        type: 'Stock received',
-        date: TODAY,
-        reference: 'Stock replenishment'
-      }]
-    }));
-  }
-  function dispense(id: string) {
-    const rx = state.prescriptions.find(r => r.id === id);
-    if (!rx || rx.status !== 'Pending') throw Error('This prescription has already been served.');
-    const med = state.medicines.find(m => m.id === rx.medicineId);
-    if (!med || med.stock < rx.quantity) throw Error('Insufficient stock. Receive stock before dispensing.');
-    if (med.expiry < TODAY) throw Error('This medicine has expired.');
-    setState(s => {
-      const current = s.prescriptions.find(r => r.id === id);
-      const stock = s.medicines.find(m => m.id === rx.medicineId);
-      if (!current || current.status !== 'Pending' || !stock || stock.stock < rx.quantity) return s;
-      return {
-        ...s,
-        prescriptions: s.prescriptions.map(r => r.id === id ? {
-          ...r,
-          status: 'Dispensed'
-        } : r),
-        medicines: s.medicines.map(m => m.id === rx.medicineId ? {
-          ...m,
-          stock: m.stock - rx.quantity
-        } : m),
-        movements: [...s.movements, {
-          id: uid('MV'),
-          medicineId: rx.medicineId,
-          quantity: rx.quantity,
-          type: 'Dispensed',
-          date: TODAY,
-          reference: id
-        }]
-      };
+  async function action(kind: string, input: object) {
+    const identity = generation.current,
+      write = ++writes.current;
+    reads.current++;
+    const result = await client.request<{
+      workspaceAction: AppState;
+    }>(operations.workspaceAction, {
+      kind,
+      input
     });
+    reads.current++;
+    if (identity === generation.current && write === writes.current) setState(result.workspaceAction);
+    return result.workspaceAction;
   }
-  function saveNote(patientId: string, text: string) {
-    setState(s => ({
-      ...s,
-      notes: [...s.notes, {
-        id: uid('N'),
-        patientId,
-        text,
-        date: TODAY
-      }]
-    }));
-  }
-  function saveProfile(profile: Profile) {
-    setState(s => ({
-      ...s,
-      profile
-    }));
+  async function run(work: () => Promise<void>) {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await work();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The action could not be completed.');
+    } finally {
+      mutationLock.current = false;
+      setBusy(false);
+    }
   }
   return <Context.Provider value={{
     state,
+    mode,
+    setMode,
     ready,
     storageError,
-    addAppointment,
-    updateAppointment,
-    addPrescription,
-    addDiagnosis,
-    addMedicine,
-    receiveStock,
-    dispense,
-    saveNote,
-    saveProfile
+    client,
+    user,
+    busy,
+    error,
+    live,
+    signIn,
+    signOut,
+    reload,
+    run,
+    startVisit: async (patientId, appointmentId) => {
+      await action('START_VISIT', {
+        patientId,
+        appointmentId
+      });
+    },
+    addAppointment: async item => {
+      try {
+        await action('ADD_APPOINTMENT', item);
+        return true;
+      } catch (e) {
+        if (e instanceof BackendError && e.code === 'APPOINTMENT_CONFLICT') return false;
+        throw e;
+      }
+    },
+    updateAppointment: async (id, status) => {
+      await action('UPDATE_APPOINTMENT', {
+        id,
+        status
+      });
+    },
+    addPrescription: async item => {
+      await action('ADD_PRESCRIPTION', item);
+    },
+    addDiagnosis: async item => {
+      await action('ADD_DIAGNOSIS', item);
+    },
+    addMedicine: async item => {
+      await action('ADD_MEDICINE', item);
+    },
+    receiveStock: async (id, quantity) => {
+      await action('RECEIVE_STOCK', {
+        id,
+        quantity
+      });
+    },
+    dispense: async id => {
+      await action('DISPENSE', {
+        id
+      });
+    },
+    saveNote: async (patientId, text) => {
+      await action('SAVE_NOTE', {
+        patientId,
+        text
+      });
+    },
+    saveProfile: async profile => {
+      await action('SAVE_PROFILE', profile);
+    },
+    saveVitals: async (patientId, vitals) => {
+      await action('SAVE_VITALS', {
+        patientId,
+        vitals
+      });
+    },
+    verifyPatient: async value => {
+      const next = await action('VERIFY_PATIENT', {
+        token: extractQrToken(value)
+      });
+      const p = next.patients[0];
+      if (!p) throw Error('Patient connection unavailable.');
+      return p.id;
+    }
   }}>{children}</Context.Provider>;
 }
 export function useStore() {
-  const s = useContext(Context);
-  if (!s) throw Error('Store missing');
-  return s;
+  const store = useContext(Context);
+  if (!store) throw Error('Store missing');
+  return store;
 }

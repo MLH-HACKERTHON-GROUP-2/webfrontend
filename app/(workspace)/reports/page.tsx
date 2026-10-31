@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Download, CalendarDays, Users, Package, TrendingUp, ArrowDownLeft, ArrowUpRight, ChartNoAxesCombined, CheckCircle2, Filter } from 'lucide-react';
+import { UnavailableLive } from '@/components/backend/live-features';
 import { useStore } from '@/lib/store';
 import { dateLabel, TODAY } from '@/lib/data';
 import { PageHeading, Panel, Stat, Badge, Avatar, Empty, downloadCSV } from '@/components/ui';
 export default function Reports() {
   const {
-    state
+    state, mode
   } = useStore();
   const [tab, setTab] = useState('Medicine movement');
   const [from, setFrom] = useState('2026-10-01');
@@ -26,11 +28,8 @@ export default function Reports() {
   function exportData() {
     if (tab === 'Medicine movement') downloadCSV('emerald-medicine-movement.csv', ['Date', 'Medicine', 'Movement', 'Quantity', 'Reference'], movements.map(m => [m.date, state.medicines.find(x => x.id === m.medicineId)!.name, m.type, m.quantity, m.reference]));else if (tab === 'Patient analysis') downloadCSV('emerald-patient-analysis.csv', ['Patient ID', 'Name', 'Age', 'Gender', 'Case', 'Visits in period'], patients.map(p => [p.id, p.name, p.age, p.gender, p.case, state.appointments.filter(a => a.patientId === p.id && inRange(a.date)).length]));else downloadCSV('emerald-appointment-report.csv', ['Date', 'Time', 'Patient', 'Type', 'Status'], visits.map(a => [a.date, a.time, state.patients.find(p => p.id === a.patientId)!.name, a.type, a.status]));
   }
-  return <><PageHeading eyebrow="A CLEARER PICTURE OF YOUR PRACTICE" title="Reports & analytics" description="Turn everyday activity into thoughtful decisions." actions={<button className="button primary" onClick={exportData}><Download size={16} /> Export report</button>} /><div className="report-filter-bar"><span><CalendarDays size={18} /> Reporting period</span><div><label>From<input aria-label="Report start date" type="date" value={from} max={to} onChange={e => {
-            if (e.target.value) setFrom(e.target.value);
-          }} /></label><span className="muted">→</span><label>To<input aria-label="Report end date" type="date" value={to} min={from} onChange={e => {
-            if (e.target.value) setTo(e.target.value);
-          }} /></label></div><span className="report-period-label">{dateLabel(from)} – {dateLabel(to)}</span></div><div className="tabs report-tabs">{[{
+  if (mode === 'live') return <UnavailableLive feature="Reports and analytics" />;
+  return <><PageHeading eyebrow="A CLEARER PICTURE OF YOUR PRACTICE" title="Reports & analytics" description="Turn everyday activity into thoughtful decisions." actions={<button className="button primary" onClick={exportData}><Download size={16} /> Export report</button>} /><div className="report-filter-bar"><span><CalendarDays size={18} /> Reporting period</span><div><div className="report-date-field"><label htmlFor="report-start">From</label><DatePicker id="report-start" label="Report start date" value={from} max={to} onChange={setFrom} /></div><span className="muted">→</span><div className="report-date-field"><label htmlFor="report-end">To</label><DatePicker id="report-end" label="Report end date" value={to} min={from} onChange={setTo} /></div></div><span className="report-period-label">{dateLabel(from)} – {dateLabel(to)}</span></div><div className="tabs report-tabs">{[{
         name: 'Medicine movement',
         icon: Package
       }, {
